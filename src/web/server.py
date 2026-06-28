@@ -41,6 +41,7 @@ from src.client import CerebrasClient
 from src.config import PROJECT_ROOT
 from src.orchestrator import AgentOrchestrator, PipelineMode
 from src.sim.brain import Decision, RobotBrain
+from src.sim.tool_brain import ToolCallingBrain
 from src.sim.compare import ThrottledClient
 from src.sim.loop import ReactiveLoop
 from src.sim.run_sim import INSTRUCTION, build_world
@@ -184,13 +185,16 @@ def _determine_winner() -> str | None:
     return None
 
 
-def _build_sim_runner(label: str, throttled: bool = False) -> SimRunner:
+def _build_sim_runner(label: str, throttled: bool = False, brain_type: str = "json") -> SimRunner:
     """Create a world, brain, and loop for one simulation side."""
     world = build_world()
     client = CerebrasClient()
     if throttled:
         client = ThrottledClient(client, extra_latency_s=GPU_EXTRA_LATENCY_S)
-    brain = RobotBrain(client)
+    if brain_type == "tool":
+        brain = ToolCallingBrain(client)
+    else:
+        brain = RobotBrain(client)
     loop = ReactiveLoop(world, brain)
     loop.set_instruction(INSTRUCTION)
 
@@ -369,8 +373,9 @@ async def api_start() -> JSONResponse:
                 break
 
         # Create runners
-        _cerebras_runner = _build_sim_runner("cerebras", throttled=False)
-        _gpu_runner = _build_sim_runner("gpu", throttled=True)
+        brain_type = "json"  # "json" or "tool"
+        _cerebras_runner = _build_sim_runner("cerebras", throttled=False, brain_type=brain_type)
+        _gpu_runner = _build_sim_runner("gpu", throttled=True, brain_type=brain_type)
 
         # Set stop events
         _cerebras_runner.stop_event.clear()

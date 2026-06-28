@@ -28,6 +28,7 @@ class InferenceResult:
     usage: dict[str, Any] = field(default_factory=dict)
     time_info: dict[str, Any] = field(default_factory=dict)
     latency_s: float = 0.0
+    tool_calls: list[dict[str, Any]] | None = None
 
 
 class CerebrasClient:
@@ -86,12 +87,28 @@ class CerebrasClient:
         usage = resp.usage.model_dump() if resp.usage else {}
         time_info = resp.time_info.model_dump() if getattr(resp, "time_info", None) else {}
 
+        # Capture tool calls from the response if present
+        tool_calls = None
+        if choice.message.tool_calls:
+            tool_calls = [
+                {
+                    "id": tc.id,
+                    "type": tc.type,
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in choice.message.tool_calls
+            ]
+
         return InferenceResult(
             content=choice.message.content or "",
             model=resp.model,
             usage=usage,
             time_info=time_info,
             latency_s=elapsed,
+            tool_calls=tool_calls,
         )
 
     def _stream(self, body: dict[str, Any]) -> InferenceResult:
