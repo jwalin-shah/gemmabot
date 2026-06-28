@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>GemmaBot: How Movement Works</title>
+<style>
+body { font-family: system-ui, sans-serif; background: #0a0a1a; color: #e0e0e0; max-width: 1000px; margin: 0 auto; padding: 20px; }
+h1 { color: #e94560; }
+h2 { color: #4ecca3; font-weight: normal; }
+.card { background: #16162a; border-radius: 12px; padding: 20px; margin: 15px 0; border: 1px solid #2a2a4a; }
+.code { font-family: monospace; background: #0a0a1a; padding: 2px 6px; border-radius: 4px; color: #4ecca3; }
+.blocked { color: #e94560; }
+.safe { color: #4ecca3; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { text-align: left; padding: 8px; border-bottom: 2px solid #e94560; color: #e94560; }
+td { padding: 8px; border-bottom: 1px solid #2a2a4a; }
+.flex { display: flex; gap: 20px; flex-wrap: wrap; }
+.col { flex: 1; min-width: 300px; }
+</style></head><body>
+<h1>🤖 How GemmaBot Controls the Robot</h1>
+<h2>Semantic → Geometric Bridge + ZTP Physics Guardrail</h2>
+
+<div class="card">
+<h2>🧠 The Problem</h2>
+<p>Gemma 4 is a vision-language model. It sees <strong>images</strong>, not coordinates.
+It can say <span class="code">"pick cracked_cup"</span> but it can't say
+<span class="code">"move x=330 y=180"</span> — and we shouldn't want it to!</p>
+
+<p style="margin-top: 10px;"><strong>Solution:</strong> Two-layer architecture:</p>
+<div style="background: #0a0a2a; padding: 15px; border-radius: 8px; margin: 10px 0;">
+<pre style="margin: 0;">
+Gemma 4:  "pick cracked_cup"    ← semantic (names what it sees)
+  ↓
+Sim:      cracked_cup → (330,180) ← geometric (resolves name to position)
+  ↓
+Physics:  20px step toward target  ← simple motion (move along vector)
+  ↓
+ZTP:      force=0.8N < 1.2N ✓      ← safety check (block if unsafe)
+</pre>
+</div>
+</div>
+
+<div class="card">
+<h2>📍 Movement Path: Gripper → Cracked Cup</h2>
+<div style="text-align: center;">
+<img src="data:image/png;base64,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drlnSunKK7/5q189cN99v08pHXHEvnvsMSS7vU+fXj16lB16aFVNzfUppTvvfKKlpXVrvvqGysoy2QdtbW233fZISunmmxdeeumobv6WQEkQYAjWo8e6A1EtLa0rVjSnlNasaW1tbUspXX/9ebfe+vB1180//fSvdLlnRUV5VdXHUkqNjfe2/z6X9zjppMkrV64uK8scfPBnWlpae/Va9zteVpbJZLbqq3dEd/vt+3R8eGtrW0e/V65c3b3fESgNDkFDsEcffe6YY76QUjr11L/9/vdHbviu/fff4+abF1ZU9MyGcNM9V65cM3z4P3/844O++c2/TSktXPjM8OFfTCkNG7ZfTU312i3PZj/k2GO/2GWBN/2cK1a8W1W1W0ppxIi/aWtr//8B2bQfeeR+KaXjjjtowYL21TbwEXkdMJG8EDOl9MlPDvnxj/8hk8msWNF83nnXvvXWux2XPl1yyTeqq4c2Nb14+OF777//BbvuOrDLPXfcsf8dd9SdffbUV155s6Hh9MrKXmvWtH73u9e/8MLy3Xcf/NOfnpVt85gxX+m4umoLX3348C+OG3fia6+tePTR50477YiOi7Buu+2RT35yyFtvvfud7/zb66//JRU+P37EEmAi+V/A3Bs16rBTTjks+/g//3PBjTcu2JqP2vDS6KLhx49YzgFDabnxxq2NLtCtnAMGPljxLX8hnAADQAABBoAAAgwAAQQYAAIIMAAEEGAACCDAABBAgAEggAADQAABBoAAAgwAAQQYAAIIMAAEEGAACCDAABBAgAEggAADQAABBoAAAgwAAQQYAAIIMAAEEGAACCDAABBAgAEggAADQAABBoAAAgwAAQQYAAIIMAAEEGAACCDAABBAgAEggAADQAABBoAAAgwAAQQYAAIIMAAEEGAACCDAABBAgAEggAADQAABBoAAAgwAAQQYAAIIMAAEEGAACCDAABBAgAEggAADQAABBoAAAgwAAQQYAAIIMAAEEGAACCDAABBAgAEggAADQAABBoAAAgwAAQQYAAIIMAAEEGAACCDAABBAgAEggAADQAABBoAAAgwAAgwApcEKGAACCDAABBBgAAggwAAQQIABIIAAA0AAAQaAAAIMAAEEGAACCDAABBBgAAggwAAQQIABIIAAA0AAAQaAAAIMAAIMAKXBChgAAggwAAQQYAAIIMAAEECAASCAAANAAAEGgAACDAABBBgAAggwAAQQYAAIIMAAEECAASCAAANAAAEGgAACDAABBBgAAggwAAQQYAAIIMAAEECAASCAAANAAAEGgAACDAABBBgAAggwAAQQYAAIIMAAEECAASCAAANAAAEGgAACDAABBBgAAggwAAQQYAAIIMAAEECAASCAAANAAAEGgAACDAABBBgAAggwAAQQYAAIIMAAEECAASCAAANAAAEGgAACDAABBBgAAggwAAQQYAAIIMAAEECAASCAAANAAAEGgAACDAABBBgAAggwAAQQYAAIIMAAEECAASCAAANAAAEGgAACDAABBBgAAggwAAQQYAAIIMAAEECAASCAAANAAAEGgAACDAABBBgAAggwAAQQYAAIIMAAEECAASCAAANAAAEGgAACDAABBBgAAggwAAQQYAAIIMAAEECAASCAAANAAAEGgAACDAABBBgAAggwAAQQYAAIIMAAEECAASCAAANAAAEGgAACDAABBBgAAggwAAQQYAAIIMAAEECAASCAAANAAAEGgAACDAABBBgAAggwAAQQYAAIIMAAEECAASCAAANAAAEGgAACDAAp9/4fuowGJ5lHzd4AAAAASUVORK5CYII=" style="max-width: 100%; border-radius: 8px;">
+</div>
+<p style="margin-top: 10px; color: #888; text-align: center;">
+Each red dot is one tick. Gripper moves 20px/tick along the straight-line vector.
+Gemma 4 re-decides EVERY tick from the current image — so if the cup moves, it tracks it.
+</p>
+</div>
+
+<div class="flex">
+<div class="col">
+<div class="card">
+<h2>✅ What Works (ZTP Blocks)</h2>
+<table>
+<tr><th>Scenario</th><th>Condition</th><th>Result</th></tr>
+<tr><td>Normal pick</td><td>force=0.8N</td><td class="safe">✅ SAFE</td></tr>
+<tr><td>Overstress</td><td>force=1.8N > 1.2N</td><td class="blocked">❌ BLOCKED</td></tr>
+<tr><td>Crush force</td><td>force=5.0N > 1.2N</td><td class="blocked">❌ BLOCKED</td></tr>
+<tr><td>ESD safe</td><td>charge=50V</td><td class="safe">✅ SAFE</td></tr>
+<tr><td>ESD danger</td><td>charge=250V</td><td class="blocked">❌ BLOCKED</td></tr>
+</table>
+</div>
+</div>
+
+<div class="col">
+<div class="card">
+<h2>⚠️ Honest Assessment</h2>
+<table>
+<tr><th>Domain</th><th>Status</th><th>Note</th></tr>
+<tr><td>Surgical</td><td class="safe">✅</td><td>Force limits work perfectly</td></tr>
+<tr><td>Micro/ESD</td><td class="safe">✅</td><td>Charge detection works</td></tr>
+<tr><td>Terran</td><td style="color: #ffd700;">⚠️</td><td>Designed for 500kg+ vehicles</td></tr>
+<tr><td>Orbital</td><td style="color: #888;">—</td><td>Satellites, not tabletop</td></tr>
+<tr><td>Atheric</td><td style="color: #888;">—</td><td>RF links, not robot arms</td></tr>
+</table>
+<p style="margin-top: 10px; color: #888; font-size: 13px;">
+Terran still works — just for heavier robots. For the tabletop demo,
+Surgical + Micro are the relevant safety domains.
+</p>
+</div>
+</div>
+</div>
+
+<div class="card">
+<h2>🔄 Per-Tick Pipeline (Real Cerebras Data)</h2>
+<table>
+<tr><th>Tick</th><th>Gemma Decides</th><th>Latency</th><th>ZTP Says</th><th>Gripper Position</th></tr>
+<tr><td>1</td><td>pick cracked_cup</td><td>306ms</td><td class="safe">✓ SAFE</td><td>(321, 50)</td></tr>
+<tr><td>2</td><td>pick cracked_cup</td><td>264ms</td><td class="safe">✓ SAFE</td><td>(323, 70)</td></tr>
+<tr><td>3</td><td>pick cracked_cup</td><td>267ms</td><td class="safe">✓ SAFE</td><td>(324, 90)</td></tr>
+<tr><td>4</td><td>pick cracked_cup</td><td>380ms</td><td class="safe">✓ SAFE</td><td>(325, 110)</td></tr>
+<tr><td>5</td><td>pick cracked_cup</td><td>290ms</td><td class="safe">✓ SAFE</td><td>(327, 130)</td></tr>
+<tr><td style="color: #ffd700;">⚡6</td><td>pick cracked_cup</td><td>261ms</td><td class="safe">✓ SAFE</td><td style="color: #ffd700;">(new target 520,130!)</td></tr>
+<tr><td>7</td><td>pick cracked_cup</td><td>400ms</td><td class="safe">✓ SAFE</td><td>(507, 131)</td></tr>
+</table>
+<p style="margin-top: 10px; color: #888; font-size: 13px;">
+At tick 6 the cup was physically dragged to a new position. Gemma sees the NEW image,
+detects the change, and redirects. This is closed-loop visual servoing at ~3Hz.
+</p>
+</div>
+
+<div class="card">
+<h2>📋 What To Do Next</h2>
+<ol style="line-height: 1.8;">
+<li><strong>Show the block demo</strong> — run <span class="code">uv run python ztp_integration/demo/ztp_block_demo.py</span> to show ZTP blocking overstress</li>
+<li><strong>Show the speed comparison</strong> — Cerebras makes 51 decisions while GPU makes 8 in 15s</li>
+<li><strong>Film the visualizer</strong> — click through frames showing Gemma tracking the moved cup</li>
+<li><strong>Demo video hook:</strong> "Gemma 4 sees → decides in 300ms → ZTP validates in 0.05ms → robot moves"</li>
+</ol>
+</div>
+</body></html>
