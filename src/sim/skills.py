@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import math
 
+import re
 from src.sim.world import World
+
 
 STEP = 20.0  # gripper travel per tick, in pixels
 REACH = 14.0  # distance at which the gripper is "at" the target
@@ -68,6 +70,59 @@ def move_to(world: World, target: str) -> str:
 def stop(world: World, target: str) -> str:
     # Halt in place — the gripper holds position this tick.
     return "done"
+
+
+
+def resolve_target(description: str, world: World) -> str | None:
+    """Fuzzy-match a visual description to the best object ID.
+    
+    Gemma says "the cracked tan cup in Zone B" -> we match by color + attribute + zone.
+    """
+    desc_lower = description.lower().strip()
+    if not desc_lower:
+        return None
+    
+    # Check bins first
+    for bin_name in world.bins:
+        if bin_name in desc_lower:
+            return bin_name
+    
+    best_match = None
+    best_score = 0
+    
+    for oid, obj in world.objects.items():
+        score = 0
+        # Color match
+        color_map = {
+            (210, 60, 60): "red",
+            (60, 90, 210): "blue", 
+            (200, 175, 120): "tan",
+        }
+        obj_color_name = color_map.get(obj.color, "")
+        if obj_color_name and obj_color_name in desc_lower:
+            score += 3
+        
+        # Attribute match
+        if obj.attribute == "cracked" and ("crack" in desc_lower or "broken" in desc_lower or "mark" in desc_lower):
+            score += 3
+        
+        # Zone match
+        zone = world.zone_of(oid)
+        if zone and zone.lower() in desc_lower:
+            score += 2
+        
+        # Label match (last resort partial)
+        for word in obj.label.lower().split():
+            if word in desc_lower:
+                score += 1
+        
+        if score > best_score:
+            best_score = score
+            best_match = oid
+    
+    # Only return if we have some confidence
+    return best_match if best_score >= 2 else None
+
 
 
 SKILLS = {

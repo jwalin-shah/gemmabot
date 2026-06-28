@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from src.sim.brain import Decision
-from src.sim.skills import execute
+from src.sim.skills import execute, resolve_target
 from src.sim.world import World
 
 
@@ -47,7 +47,8 @@ class ReactiveLoop:
         decision = self.brain.decide(
             self.instruction, image, labels, bins, proprioception=self._proprioception()
         )
-        status = execute(self.world, decision.skill, decision.target)
+        resolved_target = resolve_target(decision.target, self.world) if decision.skill in ('pick', 'move_to', 'place') else decision.target
+        status = execute(self.world, decision.skill, resolved_target or decision.target)
         self.world.physics()
         self.world.tick += 1
         result = TickResult(tick=self.world.tick, decision=decision, status=status)

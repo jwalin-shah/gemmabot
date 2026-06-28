@@ -3,378 +3,202 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🤖 GemmaBot — Multi-Agent Robotics Demo</title>
+<title>GemmaBot &mdash; Multi-Agent Robotics Demo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { --bg: #0a0e17; --card-bg: #111827; --card-border: #1e293b; --accent-cerebras: #00d4aa; --accent-cerebras-glow: rgba(0,212,170,0.25); --accent-gpu: #ff6b6b; --accent-gpu-glow: rgba(255,107,107,0.25); --accent-blue: #3b82f6; --text: #e2e8f0; --text-dim: #64748b; --text-bright: #f8fafc; --font: 'Inter',-apple-system,sans-serif; --mono: 'JetBrains Mono',monospace; }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; background-image: radial-gradient(ellipse at 20% 50%, rgba(0,212,170,0.03) 0%, transparent 50%), radial-gradient(ellipse at 80% 50%, rgba(255,107,107,0.03) 0%, transparent 50%); }
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: var(--card-border); border-radius: 3px; }
-  .header { background: linear-gradient(135deg, rgba(17,24,39,0.95), rgba(10,14,23,0.95)); border-bottom: 1px solid var(--card-border); padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 100; }
-  .header-left { display: flex; align-items: center; gap: 16px; }
-  .header h1 { font-size: 1.25rem; font-weight: 700; color: var(--text-bright); }
-  .header h1 span { color: var(--accent-cerebras); }
-  .header .subtitle { font-size: 0.75rem; color: var(--text-dim); letter-spacing: 0.05em; text-transform: uppercase; }
-  .header-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(0,212,170,0.1); border: 1px solid rgba(0,212,170,0.2); border-radius: 20px; padding: 4px 14px; font-size: 0.7rem; color: var(--accent-cerebras); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
-  .controls { display: flex; gap: 8px; }
-  .controls button { background: transparent; border: 1px solid var(--card-border); color: var(--text); padding: 8px 18px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-family: var(--font); font-weight: 500; transition: all 0.2s; }
-  .controls button:hover { border-color: var(--accent-blue); color: var(--text-bright); }
-  .controls button.primary { background: var(--accent-cerebras); color: #0a0e17; border-color: var(--accent-cerebras); font-weight: 600; }
-  .controls button.primary:hover { background: #00e6b8; }
-  .controls button.danger { color: var(--accent-gpu); border-color: rgba(255,107,107,0.3); }
-  .controls button.danger:hover { border-color: var(--accent-gpu); background: rgba(255,107,107,0.1); }
-  .controls button.warning { color: #fbbf24; border-color: rgba(251,191,36,0.3); }
-  .controls button.warning:hover { border-color: #fbbf24; background: rgba(251,191,36,0.1); }
-  .controls button:disabled { opacity: 0.3; cursor: not-allowed; }
-  .main { max-width: 1440px; margin: 0 auto; padding: 20px 24px; }
-  .race-dashboard { display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; margin-bottom: 16px; align-items: stretch; }
-  .race-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 20px; position: relative; overflow: hidden; transition: all 0.3s; }
-  .race-card.cerebras { border-color: rgba(0,212,170,0.15); }
-  .race-card.cerebras.winning { border-color: var(--accent-cerebras); box-shadow: 0 0 30px var(--accent-cerebras-glow); }
-  .race-card.gpu { border-color: rgba(255,107,107,0.15); }
-  .race-card.gpu.winning { border-color: var(--accent-gpu); box-shadow: 0 0 30px var(--accent-gpu-glow); }
-  .race-card .side-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; margin-bottom: 4px; }
-  .race-card.cerebras .side-label { color: var(--accent-cerebras); }
-  .race-card.gpu .side-label { color: var(--accent-gpu); }
-  .race-card .side-name { font-size: 1.1rem; font-weight: 700; color: var(--text-bright); margin-bottom: 12px; }
-  .race-card .win-badge { position: absolute; top: 12px; right: 16px; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; padding: 3px 10px; border-radius: 4px; }
-  .race-card.cerebras .win-badge { background: rgba(0,212,170,0.15); color: var(--accent-cerebras); }
-  .race-card.gpu .win-badge { background: rgba(255,107,107,0.15); color: var(--accent-gpu); }
-  .race-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
-  .race-metrics .metric { text-align: center; padding: 8px; background: rgba(255,255,255,0.02); border-radius: 8px; }
-  .race-metrics .metric .value { font-family: var(--mono); font-size: 1.8rem; font-weight: 700; line-height: 1.2; transition: color 0.3s; }
-  .race-card.cerebras .metric .value { color: var(--accent-cerebras); }
-  .race-card.gpu .metric .value { color: var(--accent-gpu); }
-  .race-metrics .metric .label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-top: 2px; }
-  .reacquire-row { display: flex; justify-content: space-between; padding: 6px 0; border-top: 1px solid rgba(255,255,255,0.04); margin-top: 6px; }
-  .reacquire-row .re-label { font-size: 0.7rem; color: var(--text-dim); }
-  .reacquire-row .re-value { font-family: var(--mono); font-size: 0.85rem; font-weight: 600; }
-  .race-card.cerebras .reacquire-row .re-value { color: var(--accent-cerebras); }
-  .race-card.gpu .reacquire-row .re-value { color: var(--accent-gpu); }
-  .race-vs { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 8px; }
-  .race-vs .vs-text { font-size: 1.2rem; font-weight: 800; color: var(--text-dim); letter-spacing: 0.05em; }
-  .race-vs .vs-divider { width: 1px; height: 40px; background: linear-gradient(transparent, var(--card-border), transparent); margin: 8px 0; }
-  .chart-section { margin-bottom: 16px; }
-  .sim-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
-  .sim-panel { background: var(--card-bg); border-radius: 12px; overflow: hidden; border: 1px solid var(--card-border); transition: border-color 0.3s; }
-  .sim-panel.cerebras-glow { border-color: var(--accent-cerebras); box-shadow: 0 0 20px var(--accent-cerebras-glow); }
-  .sim-panel.gpu-glow { border-color: var(--accent-gpu); box-shadow: 0 0 20px var(--accent-gpu-glow); }
-  .sim-panel .panel-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--card-border); }
-  .sim-panel .panel-header .pname { font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-  .sim-panel .panel-header .pname .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-  .sim-panel.cerebras-glow .dot { background: var(--accent-cerebras); box-shadow: 0 0 6px var(--accent-cerebras); }
-  .sim-panel.gpu-glow .dot { background: var(--accent-gpu); box-shadow: 0 0 6px var(--accent-gpu); }
-  .sim-panel .panel-header .platency { font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim); }
-  .sim-panel .world-container { width: 100%; background: #0d1117; position: relative; }
-  .sim-panel .world-container img { width: 100%; height: auto; display: block; }
-  .sim-panel .decision-bar { padding: 10px 14px; border-top: 1px solid var(--card-border); min-height: 50px; }
-  .sim-panel .decision-bar .skill-chip { display: inline-block; font-family: var(--mono); font-size: 0.75rem; font-weight: 600; padding: 2px 10px; border-radius: 4px; margin-right: 6px; }
-  .sim-panel.cerebras-glow .skill-chip { background: rgba(0,212,170,0.15); color: var(--accent-cerebras); }
-  .sim-panel.gpu-glow .skill-chip { background: rgba(255,107,107,0.15); color: var(--accent-gpu); }
-  .sim-panel .decision-bar .target-chip { font-family: var(--mono); font-size: 0.75rem; color: var(--accent-blue); }
-  .sim-panel .decision-bar .reasoning-text { font-size: 0.72rem; color: var(--text-dim); margin-top: 4px; font-style: italic; }
-  .sim-panel .decision-bar .latency-badge { float: right; font-family: var(--mono); font-size: 0.7rem; font-weight: 600; }
-  .sim-panel.cerebras-glow .latency-badge { color: var(--accent-cerebras); }
-  .sim-panel.gpu-glow .latency-badge { color: var(--accent-gpu); }
-  .panel-state-label { position: absolute; top: 42px; right: 14px; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
-  .status-done { background: rgba(34,197,94,0.15); color: #22c55e; }
-  .status-running { background: rgba(59,130,246,0.15); color: #3b82f6; }
-  .status-waiting { background: rgba(100,116,139,0.15); color: #64748b; }
-  .pipeline-section { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-  .pipeline-section h2 { font-size: 0.9rem; font-weight: 600; color: var(--text); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-  .pipeline-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-  .pipeline-step { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 14px; text-align: center; transition: all 0.3s; }
-  .pipeline-step .step-icon { font-size: 1.5rem; margin-bottom: 6px; }
-  .pipeline-step .step-name { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); }
-  .pipeline-step .step-time { font-family: var(--mono); font-size: 0.8rem; font-weight: 600; margin-top: 4px; color: var(--accent-cerebras); }
-  .pipeline-step.loaded { border-color: rgba(0,212,170,0.3); }
-  .pipeline-step .step-preview { font-size: 0.65rem; color: var(--text-dim); margin-top: 6px; max-height: 40px; overflow: hidden; text-overflow: ellipsis; }
-  .pipeline-step .step-mode-tag { font-size: 0.55rem; color: var(--text-dim); margin-top: 8px; padding: 2px 6px; border-radius: 3px; background: rgba(255,255,255,0.03); display: inline-block; }
-  .decisions-log { margin-top: 12px; max-height: 140px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 6px; padding: 8px; }
-  .decisions-log .log-entry { font-family: var(--mono); font-size: 0.6rem; padding: 2px 0; color: var(--text-dim); border-bottom: 1px solid rgba(255,255,255,0.02); display: flex; gap: 8px; }
-  .decisions-log .log-entry .log-tick { color: var(--text-dim); min-width: 30px; }
-  .no-data { text-align: center; padding: 20px; color: var(--text-dim); font-size: 0.8rem; }
-  .mode-btn.active { background: rgba(0,212,170,0.15) !important; border-color: rgba(0,212,170,0.3) !important; color: #00d4aa !important; font-weight: 600 !important; }
-  @keyframes countUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-  .count-anim { animation: countUp 0.3s ease-out; }
-  @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-  .slide-up { animation: slideUp 0.4s ease-out; }
-  @media (max-width: 900px) { .race-dashboard { grid-template-columns: 1fr; } .race-vs { flex-direction: row; padding: 8px 0; } .race-vs .vs-divider { width: 40px; height: 1px; } .sim-panels { grid-template-columns: 1fr; } .pipeline-steps { grid-template-columns: repeat(2, 1fr); } .header { flex-direction: column; gap: 12px; } }
+:root{--bg-primary:#0a0e17;--bg-secondary:#0d1322;--bg-card:#131a2b;--bg-card-hover:#181f35;--border-color:#1e2a45;--border-subtle:#162040;--text-primary:#e8edf5;--text-secondary:#8892b0;--text-muted:#5a6485;--accent-cerebras:#00d4aa;--accent-cerebras-glow:rgba(0,212,170,0.25);--accent-cerebras-subtle:rgba(0,212,170,0.08);--accent-gpu:#ff6b6b;--accent-gpu-glow:rgba(255,107,107,0.25);--accent-gpu-subtle:rgba(255,107,107,0.08);--accent-gold:#ffd700;--accent-blue:#4a9eff;--font-body:"Inter",-apple-system,sans-serif;--font-mono:"JetBrains Mono",monospace;--radius-sm:6px;--radius-md:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-family:var(--font-body);background:var(--bg-primary);color:var(--text-primary);font-size:14px;height:100%;-webkit-font-smoothing:antialiased}
+body{height:100%;overflow-y:auto;overflow-x:hidden;background:radial-gradient(ellipse at 20% 50%,rgba(0,212,170,0.04) 0%,transparent 60%),radial-gradient(ellipse at 80% 50%,rgba(255,107,107,0.04) 0%,transparent 60%),var(--bg-primary);position:relative}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(30,42,69,0.3) 1px,transparent 1px),linear-gradient(90deg,rgba(30,42,69,0.3) 1px,transparent 1px);background-size:48px 48px}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg-primary)}::-webkit-scrollbar-thumb{background:var(--border-color);border-radius:3px}
+.app{position:relative;z-index:1;max-width:1440px;margin:0 auto;padding:12px 20px 16px;height:100vh;display:flex;flex-direction:column;gap:10px}
+.header{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;flex-shrink:0}
+.header-left{display:flex;align-items:center;gap:14px}.header-icon{font-size:28px}
+.header-title h1{font-size:18px;font-weight:700;background:linear-gradient(135deg,var(--accent-cerebras),var(--accent-blue),var(--accent-gpu));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:-0.3px}
+.header-title .subtitle{font-size:11px;color:var(--text-muted);margin-top:-1px;letter-spacing:0.2px}
+.header-controls{display:flex;gap:8px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:6px;font-family:var(--font-body);font-size:12px;font-weight:600;border:1px solid transparent;cursor:pointer;transition:all .15s ease;letter-spacing:0.3px;overflow:hidden}
+.btn-primary{background:linear-gradient(135deg,var(--accent-cerebras),#00b894);color:#000;border-color:var(--accent-cerebras);box-shadow:0 0 20px rgba(0,212,170,0.15)}
+.btn-primary:hover{box-shadow:0 0 30px rgba(0,212,170,0.3);transform:translateY(-1px)}
+.btn-primary:disabled{opacity:0.4;cursor:not-allowed}
+.btn-danger{background:linear-gradient(135deg,var(--accent-gpu),#e04848);color:#fff;border-color:var(--accent-gpu);box-shadow:0 0 20px rgba(255,107,107,0.15)}
+.btn-danger:hover{box-shadow:0 0 30px rgba(255,107,107,0.3);transform:translateY(-1px)}
+.btn-danger:disabled{opacity:0.4;cursor:not-allowed}
+.btn-ghost{background:transparent;color:var(--text-secondary);border-color:var(--border-color)}
+.btn-ghost:hover{background:var(--bg-card);color:var(--text-primary)}
+.dash-row{display:flex;gap:10px;flex-shrink:0}
+.dash-card{flex:1;background:var(--bg-card);border:1px solid var(--border-color);border-radius:10px;padding:12px 16px;position:relative;overflow:hidden;transition:all .3s ease}
+.dash-card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;transition:all .3s ease}
+.dash-card.cerebras::before{background:linear-gradient(90deg,var(--accent-cerebras),transparent)}
+.dash-card.gpu::before{background:linear-gradient(90deg,var(--accent-gpu),transparent)}
+.dash-card.cerebras.winner{border-color:var(--accent-cerebras);box-shadow:0 0 30px var(--accent-cerebras-glow)}
+.dash-card.gpu.winner{border-color:var(--accent-gpu);box-shadow:0 0 30px var(--accent-gpu-glow)}
+.dash-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.dash-name{font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
+.pulse-dot{width:8px;height:8px;border-radius:50%;display:inline-block;animation:pulse 1.5s ease-in-out infinite}
+.cerebras .pulse-dot{background:var(--accent-cerebras);box-shadow:0 0 8px var(--accent-cerebras)}
+.gpu .pulse-dot{background:var(--accent-gpu);box-shadow:0 0 8px var(--accent-gpu)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.dash-badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:0.5px}
+.dash-badge.running{background:rgba(0,212,170,0.1);color:var(--accent-cerebras);border:1px solid rgba(0,212,170,0.2)}
+.metrics{display:flex;gap:16px;align-items:flex-end}.mg{flex:1}
+.ml{font-size:9px;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);margin-bottom:2px;font-weight:500}
+.mv{font-family:var(--font-mono);font-size:24px;font-weight:700;line-height:1.1}
+.mv.sm{font-size:16px}.mv.xs{font-size:13px}
+.green{color:var(--accent-cerebras)}.red{color:var(--accent-gpu)}.gold{color:var(--accent-gold)}.white{color:var(--text-primary)}
+.gt{height:4px;background:var(--border-color);border-radius:2px;margin-top:4px;overflow:hidden}
+.gf{height:100%;border-radius:2px;transition:width .5s ease;background:linear-gradient(90deg,transparent,currentColor)}
+.cerebras .gf{color:var(--accent-cerebras)}.gpu .gf{color:var(--accent-gpu)}
+.sim-row{display:flex;gap:10px;flex:1;min-height:0}
+.sim-panel{flex:1;background:var(--bg-card);border:1px solid var(--border-color);border-radius:10px;display:flex;flex-direction:column;overflow:hidden;position:relative;transition:all .3s ease}
+.sim-panel.cerebras{border-color:rgba(0,212,170,0.3);box-shadow:0 0 20px rgba(0,212,170,0.06)}
+.sim-panel.gpu{border-color:rgba(255,107,107,0.3);box-shadow:0 0 20px rgba(255,107,107,0.06)}
+.sim-panel.cerebras.winner{border-color:var(--accent-cerebras);box-shadow:0 0 40px var(--accent-cerebras-glow);animation:cglow 2s ease-in-out infinite}
+.sim-panel.gpu.winner{border-color:var(--accent-gpu);box-shadow:0 0 40px var(--accent-gpu-glow);animation:gglow 2s ease-in-out infinite}
+@keyframes cglow{0%,100%{box-shadow:0 0 20px rgba(0,212,170,0.10)}50%{box-shadow:0 0 50px rgba(0,212,170,0.25)}}
+@keyframes gglow{0%,100%{box-shadow:0 0 20px rgba(255,107,107,0.10)}50%{box-shadow:0 0 50px rgba(255,107,107,0.25)}}
+.sim-header{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;border-bottom:1px solid var(--border-subtle);flex-shrink:0}
+.sim-header .label{font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px}
+.lb{font-family:var(--font-mono);font-size:10px;padding:2px 8px;border-radius:10px;font-weight:500}
+.cerebras .lb{background:var(--accent-cerebras-subtle);color:var(--accent-cerebras);border:1px solid rgba(0,212,170,0.2)}
+.gpu .lb{background:var(--accent-gpu-subtle);color:var(--accent-gpu);border:1px solid rgba(255,107,107,0.2)}
+.zb{font-size:9px;padding:2px 8px;border-radius:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;background:rgba(74,158,255,0.1);color:var(--accent-blue);border:1px solid rgba(74,158,255,0.2)}
+.fw{flex:1;display:flex;align-items:center;justify-content:center;background:#080c14;position:relative;min-height:0;overflow:hidden}
+.fw::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,0.4) 100%);pointer-events:none}
+.fw img{max-width:100%;max-height:100%;object-fit:contain}
+.db{padding:6px 12px;border-top:1px solid var(--border-subtle);flex-shrink:0;min-height:36px;display:flex;align-items:center;gap:6px}
+.sc{font-family:var(--font-mono);font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;flex-shrink:0}
+.cerebras .sc{background:var(--accent-cerebras-subtle);color:var(--accent-cerebras)}
+.gpu .sc{background:var(--accent-gpu-subtle);color:var(--accent-gpu)}
+.dt2{font-size:11px;color:var(--text-secondary);flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.rc{font-family:var(--font-mono);font-size:9px;padding:1px 6px;border-radius:4px;font-weight:600;flex-shrink:0;background:rgba(255,215,0,0.12);color:var(--accent-gold);border:1px solid rgba(255,215,0,0.2)}
+.pl{flex-shrink:0;background:var(--bg-card);border:1px solid var(--border-color);border-radius:10px;padding:10px 16px 12px}
+.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.ph h3{font-size:13px;font-weight:600;color:var(--text-primary)}
+.pt{font-family:var(--font-mono);font-size:12px;color:var(--text-secondary)}
+.ps{display:flex;align-items:stretch;gap:0}
+.pc{flex:1;background:var(--bg-secondary);border:1px solid var(--border-subtle);border-radius:6px;padding:8px 10px;min-width:0;transition:all .3s ease}
+.pc.active{border-color:var(--accent-blue);box-shadow:0 0 12px rgba(74,158,255,0.08)}
+.pc.done{border-color:rgba(0,212,170,0.3);background:rgba(0,212,170,0.03)}
+.pc.error{border-color:rgba(255,107,107,0.3);background:rgba(255,107,107,0.03)}
+.pa{flex-shrink:0;width:24px;display:flex;align-items:center;justify-content:center;color:var(--text-muted)}
+.pn{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);display:flex;align-items:center;gap:4px;margin-bottom:2px}
+.pn .pi{font-size:12px}.ps2{font-size:10px;margin-left:auto}
+.ps2.idle{color:var(--text-muted)}.ps2.running{color:var(--accent-blue)}.ps2.done{color:var(--accent-cerebras)}.ps2.error{color:var(--accent-gpu)}
+.pco{font-size:10px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pla{font-family:var(--font-mono);font-size:9px;color:var(--text-muted);margin-top:1px}
+.sb{display:flex;align-items:center;gap:12px;padding:2px 0;flex-shrink:0;font-size:10px;color:var(--text-muted)}
+.sd{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.sd.ok{background:var(--accent-cerebras);box-shadow:0 0 6px var(--accent-cerebras)}
+.sd.err{background:var(--accent-gpu);box-shadow:0 0 6px var(--accent-gpu)}
+.sd.pending{background:var(--accent-gold);box-shadow:0 0 6px var(--accent-gold);animation:pulse .6s ease-in-out infinite}
+.wt{color:var(--accent-gold);font-weight:600}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--bg-card);border:1px solid var(--accent-gold);border-radius:10px;padding:10px 20px;box-shadow:0 8px 32px rgba(0,0,0,0.5);font-size:13px;font-weight:600;color:var(--accent-gold);z-index:100;transition:transform .4s cubic-bezier(0.34,1.56,0.64,1);display:flex;align-items:center;gap:8px;pointer-events:none}
+.toast.show{transform:translateX(-50%) translateY(0)}
+@media(max-width:1100px){.app{padding:8px 12px}.mv{font-size:20px}.mv.sm{font-size:14px}}
+@media(max-height:750px){.app{padding:6px 12px 8px;gap:6px}.header{padding:6px 12px}.header-title h1{font-size:15px}.mv{font-size:18px}.mv.sm{font-size:12px}.pc{padding:5px 8px}.pl{padding:6px 12px 8px}}
 </style>
 </head>
 <body>
-<div class="header">
-  <div class="header-left">
-    <h1>🤖 <span>GemmaBot</span></h1>
-    <div><div class="subtitle">Multi-Agent Robotics Demo</div></div>
-    <span class="header-badge">⚡ Gemma 4 31B on Cerebras</span>
+<div class="app">
+  <header class="header">
+    <div class="header-left">
+      <span class="header-icon">🤖</span>
+      <div class="header-title">
+        <h1>GemmaBot &mdash; Multi-Agent Robotics Demo</h1>
+        <div class="subtitle">Powered by Gemma 4 31B on Cerebras Inference</div>
+      </div>
+    </div>
+    <div class="header-controls">
+      <button class="btn btn-primary" id="btnStartRace" onclick="startRace()">🔄 Start Race</button>
+      <button class="btn btn-danger" id="btnPerturb" onclick="perturb()">⚠️ Perturb</button>
+      <button class="btn btn-ghost" id="btnStop" onclick="stopRace()">⏹ Stop</button>
+    </div>
+  </header>
+  <div class="dash-row">
+    <div class="dash-card cerebras" id="dashCerebras">
+      <div class="dash-header">
+        <span class="dash-name"><span class="pulse-dot"></span>Cerebras (Gemma 4 31B)</span>
+        <span class="dash-badge running" id="badgeCerebras">RUNNING</span>
+      </div>
+      <div class="metrics">
+        <div class="mg"><div class="ml">Decisions</div><div class="mv white" id="decisionsCerebras" data-value="0">0</div></div>
+        <div class="mg"><div class="ml">Hz</div><div class="mv sm green" id="hzCerebras" data-value="0">0.00</div><div class="gt"><div class="gf" id="gaugeCerebras" style="width:0%"></div></div></div>
+        <div class="mg"><div class="ml">Avg Latency</div><div class="mv xs gold" id="latencyCerebras">&mdash;</div></div>
+        <div class="mg"><div class="ml">Reacquire</div><div class="mv xs gold" id="reacquireCerebras">&mdash;</div></div>
+      </div>
+    </div>
+    <div class="dash-card gpu" id="dashGpu">
+      <div class="dash-header">
+        <span class="dash-name"><span class="pulse-dot"></span>GPU Baseline</span>
+        <span class="dash-badge running" id="badgeGpu">RUNNING</span>
+      </div>
+      <div class="metrics">
+        <div class="mg"><div class="ml">Decisions</div><div class="mv white" id="decisionsGpu" data-value="0">0</div></div>
+        <div class="mg"><div class="ml">Hz</div><div class="mv sm red" id="hzGpu" data-value="0">0.00</div><div class="gt"><div class="gf" id="gaugeGpu" style="width:0%"></div></div></div>
+        <div class="mg"><div class="ml">Avg Latency</div><div class="mv xs gold" id="latencyGpu">&mdash;</div></div>
+        <div class="mg"><div class="ml">Reacquire</div><div class="mv xs gold" id="reacquireGpu">&mdash;</div></div>
+      </div>
+    </div>
   </div>
-  <div class="controls">
-    <button id="btnStart" class="primary" onclick="startRace()">🔄 Start Race</button>
-    <button id="btnPerturb" class="warning" onclick="perturb()" disabled>⚠️ Perturb Cup</button>
-    <button id="btnStop" class="danger" onclick="stopSim()" disabled>⏹ Stop</button>
+  <div class="sim-row">
+    <div class="sim-panel cerebras" id="panelCerebras">
+      <div class="sim-header">
+        <span class="label"><span class="pulse-dot" style="width:7px;height:7px"></span> Cerebras World</span>
+        <span style="display:flex;gap:6px;align-items:center">
+          <span class="zb" id="zoneCerebras">IDLE</span>
+          <span class="lb" id="latencyBadgeCerebras">&mdash;</span>
+        </span>
+      </div>
+      <div class="fw" id="frameWrapCerebras">
+        <img id="frameCerebras" style="display:none" alt="Cerebras sim frame">
+      </div>
+      <div class="db" id="decisionCerebras">
+        <span style="color:var(--text-muted);font-size:11px">Waiting for decisions...</span>
+      </div>
+    </div>
+    <div class="sim-panel gpu" id="panelGpu">
+      <div class="sim-header">
+        <span class="label"><span class="pulse-dot" style="width:7px;height:7px;background:var(--accent-gpu);box-shadow:0 0 6px var(--accent-gpu)"></span> GPU World</span>
+        <span style="display:flex;gap:6px;align-items:center">
+          <span class="zb" id="zoneGpu">IDLE</span>
+          <span class="lb" id="latencyBadgeGpu">&mdash;</span>
+        </span>
+      </div>
+      <div class="fw" id="frameWrapGpu">
+        <img id="frameGpu" style="display:none" alt="GPU sim frame">
+      </div>
+      <div class="db" id="decisionGpu">
+        <span style="color:var(--text-muted);font-size:11px">Waiting for decisions...</span>
+      </div>
+    </div>
+  </div>
+  <div class="pl">
+    <div class="ph">
+      <h3>🧠 Multi-Agent Pipeline</h3>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="pt" id="pipelineTotal">Total: &mdash;</span>
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:10px" onclick="runPipeline()">▶ Run Pipeline</button>
+      </div>
+    </div>
+    <div class="ps">
+      <div class="pc" id="step-vision"><div class="pn"><span class="pi">👁</span> Vision <span class="ps2 idle" id="status-vision">⏳ idle</span></div><div class="pco" id="content-vision">No analysis yet</div><div class="pla" id="latency-vision">&mdash;</div></div>
+      <div class="pa">›</div>
+      <div class="pc" id="step-action"><div class="pn"><span class="pi">🎯</span> Action <span class="ps2 idle" id="status-action">⏳ idle</span></div><div class="pco" id="content-action">No plan yet</div><div class="pla" id="latency-action">&mdash;</div></div>
+      <div class="pa">›</div>
+      <div class="pc" id="step-safety"><div class="pn"><span class="pi">🛡</span> Safety <span class="ps2 idle" id="status-safety">⏳ idle</span></div><div class="pco" id="content-safety">No review yet</div><div class="pla" id="latency-safety">&mdash;</div></div>
+      <div class="pa">›</div>
+      <div class="pc" id="step-execute"><div class="pn"><span class="pi">⚡</span> Execute <span class="ps2 idle" id="status-execute">⏳ idle</span></div><div class="pco" id="content-execute">No actions yet</div><div class="pla" id="latency-execute">&mdash;</div></div>
+    </div>
+  </div>
+  <div class="sb">
+    <span class="sd err" id="statusDot"></span>
+    <span id="statusText">Disconnected</span>
+    <span id="winnerDisplay" style="display:none"></span>
+    <span style="margin-left:auto" id="tickCounter">Ticks: 0</span>
   </div>
 </div>
-<div class="main">
-  <div class="race-dashboard">
-    <div class="race-card cerebras" id="card-cerebras">
-      <div class="side-label">⚡ Ultra-Fast</div>
-      <div class="side-name">Cerebras Inference</div>
-      <div class="win-badge" id="win-cerebras" style="display:none">🏆 Winner</div>
-      <div class="race-metrics">
-        <div class="metric"><div class="value" id="c-decisions">0</div><div class="label">Decisions</div></div>
-        <div class="metric"><div class="value" id="c-hz">0.0</div><div class="label">Hz</div></div>
-        <div class="metric"><div class="value" id="c-latency">—</div><div class="label">Avg Latency</div></div>
-      </div>
-      <div class="reacquire-row"><span class="re-label">⚡ Re-acquired after perturbation</span><span class="re-value" id="c-reacquired">—</span></div>
-    </div>
-    <div class="race-vs"><div class="vs-divider"></div><div class="vs-text">VS</div><div class="vs-divider"></div></div>
-    <div class="race-card gpu" id="card-gpu">
-      <div class="side-label">🐢 Baseline</div>
-      <div class="side-name">GPU (Throttled ~1.7s)</div>
-      <div class="win-badge" id="win-gpu" style="display:none">🏆 Winner</div>
-      <div class="race-metrics">
-        <div class="metric"><div class="value" id="g-decisions">0</div><div class="label">Decisions</div></div>
-        <div class="metric"><div class="value" id="g-hz">0.0</div><div class="label">Hz</div></div>
-        <div class="metric"><div class="value" id="g-latency">—</div><div class="label">Avg Latency</div></div>
-      </div>
-      <div class="reacquire-row"><span class="re-label">🐢 Re-acquired after perturbation</span><span class="re-value" id="g-reacquired">—</span></div>
-    </div>
-  </div>
-
-  <div class="chart-section">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <h2 style="font-size:0.85rem;font-weight:600;color:var(--text)">📈 Latency Timeline</h2>
-      <span style="font-size:0.65rem;color:var(--text-dim)">Last 30 ticks — lower is better</span>
-    </div>
-    <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:10px;padding:12px">
-      <canvas id="latency-chart" width="1100" height="280" style="width:100%;height:auto"></canvas>
-    </div>
-  </div>
-
-  <div class="sim-panels">
-    <div class="sim-panel" id="panel-cerebras">
-      <div class="panel-header"><span class="pname"><span class="dot"></span> Cerebras — Live</span><span class="platency" id="c-decision-latency">⏱ —</span></div>
-      <div class="world-container"><img id="c-frame" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAoAAAAGgCAYAAAAAaUxZAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAGklEQVR4nO3BMQEAAADCoPVPbQhfoAAAAAAAAOBmNwABI8DtNQAAAABJRU5ErkJggg==" alt=""><span class="panel-state-label status-waiting" id="c-status-label">⏳ Waiting</span></div>
-      <div class="decision-bar"><span class="skill-chip" id="c-skill">—</span><span class="target-chip" id="c-target">—</span><span class="latency-badge" id="c-latency-badge">—</span><div class="reasoning-text" id="c-reasoning">Waiting…</div></div>
-    </div>
-    <div class="sim-panel" id="panel-gpu">
-      <div class="panel-header"><span class="pname"><span class="dot"></span> GPU — Live</span><span class="platency" id="g-decision-latency">⏱ —</span></div>
-      <div class="world-container"><img id="g-frame" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAoAAAAGgCAYAAAAAaUxZAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAGklEQVR4nO3BMQEAAADCoPVPbQhfoAAAAAAAAOBmNwABI8DtNQAAAABJRU5ErkJggg==" alt=""><span class="panel-state-label status-waiting" id="g-status-label">⏳ Waiting</span></div>
-      <div class="decision-bar"><span class="skill-chip" id="g-skill">—</span><span class="target-chip" id="g-target">—</span><span class="latency-badge" id="g-latency-badge">—</span><div class="reasoning-text" id="g-reasoning">Waiting…</div></div>
-    </div>
-  </div>
-
-  <div class="pipeline-section slide-up">
-    <h2>🔗 Multi-Agent Pipeline <span style="font-size:0.7rem;font-weight:400;color:var(--text-dim)">Vision → Action → Safety → Execute</span></h2>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
-      <span style="font-size:0.7rem;color:var(--text-dim);font-weight:500">Mode:</span>
-      <button id="mode-parallel" class="mode-btn" onclick="setPipelineMode('parallel')" style="background:rgba(0,212,170,0.15);border:1px solid rgba(0,212,170,0.3);color:#00d4aa;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.7rem;font-family:var(--font);font-weight:600">⚡ Parallel V+A</button>
-      <button id="mode-single_shot" class="mode-btn" onclick="setPipelineMode('single_shot')" style="background:transparent;border:1px solid var(--card-border);color:var(--text);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.7rem;font-family:var(--font);font-weight:500">🚀 Single Shot</button>
-      <button id="mode-sequential" class="mode-btn" onclick="setPipelineMode('sequential')" style="background:transparent;border:1px solid var(--card-border);color:var(--text);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.7rem;font-family:var(--font);font-weight:500">🔁 Sequential</button>
-      <span style="width:1px;height:20px;background:var(--card-border);margin:0 4px"></span>
-      <button onclick="runPipeline()" style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);color:#3b82f6;padding:6px 16px;border-radius:8px;cursor:pointer;font-size:0.75rem;font-family:var(--font);font-weight:500">▶️ Run</button>
-      <button onclick="getPipelineResults()" style="background:transparent;border:1px solid var(--card-border);color:var(--text);padding:6px 16px;border-radius:8px;cursor:pointer;font-size:0.75rem;font-family:var(--font);font-weight:500">📋 Results</button>
-      <span id="pipeline-mode-label" style="font-size:0.65rem;color:var(--text-dim)">Vision + Action in parallel</span>
-    </div>
-    <div class="pipeline-steps">
-      <div class="pipeline-step" id="step-vision"><div class="step-icon">👁️</div><div class="step-name">Vision</div><div class="step-time" id="p-vision-time">—</div><div class="step-preview" id="p-vision-preview">Multimodal scene analysis</div><div class="step-mode-tag" id="tag-vision">multimodal</div></div>
-      <div class="pipeline-step" id="step-action"><div class="step-icon">🧠</div><div class="step-name">Action</div><div class="step-time" id="p-action-time">—</div><div class="step-preview" id="p-action-preview">Robot command sequence</div><div class="step-mode-tag" id="tag-action">text</div></div>
-      <div class="pipeline-step" id="step-safety"><div class="step-icon">🛡️</div><div class="step-name">Safety</div><div class="step-time" id="p-safety-time">—</div><div class="step-preview" id="p-safety-preview">Hazard review</div><div class="step-mode-tag" id="tag-safety">text</div></div>
-      <div class="pipeline-step" id="step-execute"><div class="step-icon">⚙️</div><div class="step-name">Execute</div><div class="step-time" id="p-execute-time">—</div><div class="step-preview" id="p-execute-preview">Robot actions</div><div class="step-mode-tag" id="tag-execute">simulated</div></div>
-    </div>
-    <div id="pipeline-results" style="display:none;margin-top:12px;background:rgba(0,0,0,0.3);border-radius:8px;padding:12px;max-height:300px;overflow:auto"></div>
-  </div>
-
-  <div class="pipeline-section slide-up">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <h2 style="margin-bottom:0">📊 Decision Log</h2>
-      <span style="font-size:0.65rem;color:var(--text-dim)">Tick-by-tick — lower latency = faster reactions</span>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div><div style="font-size:0.7rem;font-weight:600;color:var(--accent-cerebras);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em">⚡ Cerebras (avg ~300ms)</div><div class="decisions-log" id="c-log"><div class="no-data">Waiting for race…</div></div></div>
-      <div><div style="font-size:0.7rem;font-weight:600;color:var(--accent-gpu);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em">🐢 GPU Baseline (avg ~2s)</div><div class="decisions-log" id="g-log"><div class="no-data">Waiting for race…</div></div></div>
-    </div>
-  </div>
-</div>
-
-<script>
-var eventSource = null, raceActive = false, winnerShown = false;
-var cLog = [], gLog = [];
-var pipelineMode = 'parallel';
-var latencyHistory = {cerebras: [], gpu: []};
-var MAX_CHART_POINTS = 30;
-
-function $(id) { return document.getElementById(id); }
-function log(msg) { console.log('[UI]', msg); }
-
-function startRace() {
-  $('btnStart').disabled = true; $('btnStart').textContent = '⏳ Starting…';
-  fetch('/api/start',{method:'POST'}).then(function(r){return r.json()}).then(function(d){
-    $('btnStop').disabled = false; $('btnPerturb').disabled = false;
-    $('btnStart').textContent = '▶️ Running'; raceActive = true; connectSSE();
-  }).catch(function(e){$('btnStart').disabled = false;$('btnStart').textContent='🔄 Retry'});
-}
-function stopSim() {
-  if(eventSource){eventSource.close();eventSource=null}
-  fetch('/api/stop',{method:'POST'}).then(function(r){return r.json()}).then(function(){
-    raceActive = false; $('btnStart').disabled = false; $('btnStart').textContent = '🔄 Restart';
-    $('btnStop').disabled = true; $('btnPerturb').disabled = true;
-  });
-}
-function perturb() {
-  $('btnPerturb').disabled = true; $('btnPerturb').textContent = '⚠️ Dragging Cup!';
-  fetch('/api/perturb',{method:'POST'}).then(function(r){return r.json()}).then(function(){
-    setTimeout(function(){$('btnPerturb').disabled = false;$('btnPerturb').textContent='⚠️ Perturb Cup'},2000);
-  });
-}
-function setPipelineMode(mode) {
-  pipelineMode = mode;
-  var labels = {parallel:'Vision + Action in parallel, both multimodal', single_shot:'One call, 3 outputs', sequential:'One-by-one, text handoff'};
-  document.querySelectorAll('.mode-btn').forEach(function(b){b.style.background='transparent';b.style.borderColor='var(--card-border)';b.style.color='var(--text)';b.style.fontWeight='500'});
-  var btn = $('mode-'+mode); if(btn){btn.style.background='rgba(0,212,170,0.15)';btn.style.borderColor='rgba(0,212,170,0.3)';btn.style.color='#00d4aa';btn.style.fontWeight='600'}
-  $('pipeline-mode-label').textContent = labels[mode]||'';
-}
-
-function connectSSE() {
-  if(eventSource) eventSource.close();
-  eventSource = new EventSource('/stream');
-  eventSource.addEventListener('tick', function(e){
-    try{
-      var data = JSON.parse(e.data), side = data.side, pfx = side === 'cerebras' ? 'c-' : 'g-';
-      if(data.frame_png) $(pfx+'frame').src = data.frame_png;
-      if(data.decision){
-        var d = data.decision;
-        $(pfx+'skill').textContent = d.skill||'—'; $(pfx+'target').textContent = d.target||'—';
-        $(pfx+'latency-badge').textContent = d.latency_ms ? d.latency_ms.toFixed(0)+'ms' : '—';
-        $(pfx+'reasoning').textContent = d.reasoning||'';
-        $(pfx+'decision-latency').textContent = '⏱ '+(d.latency_ms ? d.latency_ms.toFixed(0)+'ms':'—');
-        if(d.latency_ms){latencyHistory[side].push(d.latency_ms);if(latencyHistory[side].length>MAX_CHART_POINTS)latencyHistory[side].shift();drawLatencyChart()}
-      }
-      var sl = $(pfx+'status-label');
-      var st = data.status||'running';
-      if(st==='done'){sl.textContent='✅ Done';sl.className='panel-state-label status-done'}
-      else if(st==='running'){sl.textContent='▶️ Running';sl.className='panel-state-label status-running'}
-      else{sl.textContent='⏳ Waiting';sl.className='panel-state-label status-waiting'}
-      if(data.decision&&data.decision.skill&&data.decision.skill!=='—'){
-        var entry = data.tick+'|'+(d.skill||'')+'|'+(d.target||'')+'|'+(d.latency_ms?d.latency_ms.toFixed(0)+'ms':'');
-        if(side==='cerebras'){cLog.push(entry);if(cLog.length>20)cLog.shift()}
-        else{gLog.push(entry);if(gLog.length>20)gLog.shift()}
-        renderLogs();
-        $(side==='cerebras'?'panel-cerebras':'panel-gpu').className = 'sim-panel '+(side==='cerebras'?'cerebras-glow':'gpu-glow');
-      }
-    }catch(err){}
-  });
-  eventSource.addEventListener('status', function(e){
-    try{
-      var data = JSON.parse(e.data);
-      ['cerebras','gpu'].forEach(function(side){
-        var s = data[side]; if(!s) return;
-        var pfx = side==='cerebras'?'c-':'g-';
-        animateCounter($(pfx+'decisions'), s.decision_count||0);
-        $(pfx+'hz').textContent = s.hz ? s.hz.toFixed(2) : '0.0';
-        $(pfx+'latency').textContent = s.avg_latency_ms ? s.avg_latency_ms.toFixed(0)+'ms' : '—';
-        if(s.reacquired_ms!==null&&s.reacquired_ms!==undefined) $(pfx+'reacquired').textContent = (s.reacquired_ms/1000).toFixed(2)+'s';
-      });
-      if(data.winner&&!winnerShown){winnerShown=true;$('card-'+data.winner).classList.add('winning');$('win-'+data.winner).style.display='block';$('win-'+data.winner).textContent='🏆 Winner!'}
-    }catch(err){}
-  });
-  eventSource.addEventListener('done',function(){raceActive=false});
-  eventSource.onerror = function(){};
-}
-
-function animateCounter(el,target){var c=parseInt(el.textContent)||0;if(c===target)return;el.classList.remove('count-anim');el.textContent=target;el.classList.add('count-anim')}
-function renderLogs(){renderSideLog('c-log',cLog);renderSideLog('g-log',gLog)}
-function renderSideLog(id,entries){
-  var el=$(id);
-  if(entries.length===0){el.innerHTML='<div class="no-data">Waiting…</div>';return}
-  el.innerHTML=entries.map(function(e){var p=e.split('|');return '<div class="log-entry"><span class="log-tick">t'+p[0]+'</span><span class="log-skill">'+p[1]+'</span><span style="color:#79c0ff">'+p[2]+'</span><span style="color:#64748b;margin-left:auto">'+p[3]+'</span></div>'}).join('');
-}
-
-function drawLatencyChart(){
-  var canvas = $('latency-chart'); if(!canvas) return;
-  var ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height;
-  var P = {top:20,right:20,bottom:30,left:55}, pW = W-P.left-P.right, pH = H-P.top-P.bottom;
-  ctx.clearRect(0,0,W,H);
-  ctx.fillStyle = '#0d1117'; ctx.fillRect(P.left,P.top,pW,pH);
-  var all = latencyHistory.cerebras.concat(latencyHistory.gpu);
-  var maxLat = Math.max(200, ...all) * 1.15; if(!maxLat||maxLat<200) maxLat=200;
-  ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth=1;
-  for(var i=0;i<4;i++){var y=P.top+(pH/4)*i;ctx.beginPath();ctx.moveTo(P.left,y);ctx.lineTo(P.left+pW,y);ctx.stroke();ctx.fillStyle='rgba(255,255,255,0.25)';ctx.font='10px JetBrains Mono,monospace';ctx.textAlign='right';ctx.fillText(Math.round(maxLat-(maxLat/4)*i)+'ms',P.left-5,y+4)}
-  ctx.fillStyle='rgba(255,255,255,0.25)';ctx.font='10px Inter,sans-serif';ctx.textAlign='center';ctx.fillText('Tick',P.left+pW/2,H-4);
-  ctx.save();ctx.translate(12,P.top+pH/2);ctx.rotate(-Math.PI/2);ctx.fillStyle='rgba(255,255,255,0.25)';ctx.font='10px Inter,sans-serif';ctx.textAlign='center';ctx.fillText('Latency (ms)',0,0);ctx.restore();
-  drawLine(ctx,latencyHistory.cerebras,'#00d4aa',P,pW,pH,maxLat);
-  drawLine(ctx,latencyHistory.gpu,'#ff6b6b',P,pW,pH,maxLat);
-  ctx.font='10px Inter,sans-serif';ctx.textAlign='left';
-  ctx.fillStyle='#00d4aa';ctx.fillRect(P.left+pW-140,P.top+2,10,10);ctx.fillText('Cerebras',P.left+pW-125,P.top+10);
-  ctx.fillStyle='#ff6b6b';ctx.fillRect(P.left+pW-70,P.top+2,10,10);ctx.fillText('GPU',P.left+pW-55,P.top+10);
-}
-function drawLine(ctx,data,color,P,pW,pH,maxLat){
-  if(data.length<2)return;
-  ctx.strokeStyle=color;ctx.lineWidth=2;ctx.shadowColor=color;ctx.shadowBlur=4;ctx.beginPath();
-  var step=pW/Math.max(data.length-1,1);
-  for(var i=0;i<data.length;i++){var x=P.left+(data.length===1?pW/2:i*step),y=P.top+pH-(data[i]/maxLat*pH);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}
-  ctx.stroke();ctx.shadowBlur=0;
-}
-
-function runPipeline(){
-  fetch('/api/pipeline',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task:'Identify objects in the scene and report findings.',mode:pipelineMode})})
-    .then(function(r){return r.json()}).then(function(d){showPipelineResults(d)}).catch(function(e){log('Pipeline error: '+e)});
-}
-function getPipelineResults(){
-  fetch('/api/pipeline-results').then(function(r){return r.json()}).then(function(d){showPipelineResults(d)}).catch(function(e){log('Results error: '+e)});
-}
-function showPipelineResults(d){
-  var timing=d.timing||{},steps=timing.pipeline_steps||{},modeLabel=d.mode||'parallel';
-  var descs={parallel:'(V+A parallel, both multimodal)',single_shot:'(single call)',sequential:'(text handoff)'};
-  $('pipeline-mode-label').textContent=descs[modeLabel]||'';
-  var vTime=steps.vision_agent||steps.single_shot_call||0;
-  $('p-vision-time').textContent=vTime?(vTime*1000).toFixed(0)+'ms':'✓';
-  $('p-vision-preview').textContent=d.vision_analysis?d.vision_analysis.substring(0,80)+'…':'Scene analyzed';
-  $('step-vision').classList.add('loaded');
-  $('tag-vision').textContent=modeLabel==='single_shot'?'single shot':'multimodal';
-  var aTime=steps.action_agent||steps.single_shot_call||0;
-  $('p-action-time').textContent=aTime?(aTime*1000).toFixed(0)+'ms':'✓';
-  $('p-action-preview').textContent=d.action_plan?d.action_plan.substring(0,80)+'…':'Plan generated';
-  $('step-action').classList.add('loaded');
-  $('tag-action').textContent=modeLabel==='parallel'?'multimodal!':(modeLabel==='single_shot'?'single shot':'text');
-  var sTime=steps.safety_agent||steps.single_shot_call||0;
-  $('p-safety-time').textContent=sTime?(sTime*1000).toFixed(0)+'ms':'✓';
-  $('p-safety-preview').textContent=d.safety_review?d.safety_review.substring(0,80)+'…':'Safety checked';
-  $('step-safety').classList.add('loaded');
-  var totalTime=timing.total_time_s||0;
-  $('p-execute-time').textContent=totalTime?(totalTime*1000).toFixed(0)+'ms':'✓';
-  var actions=d.executed_actions||[];
-  $('p-execute-preview').textContent=actions.length>0?actions.map(function(a){return a.action+'('+a.target+')'}).join(', '):'Done';
-  $('step-execute').classList.add('loaded');
-  var el=$('pipeline-results');el.style.display='block';
-  el.innerHTML='<div style="display:flex;justify-content:space-between"><span style="font-size:0.7rem;color:#00d4aa;font-weight:600">Mode: '+modeLabel+'</span><span style="font-size:0.7rem;color:var(--text-dim)">Total: '+(totalTime*1000).toFixed(0)+'ms</span></div><pre style="font-size:0.7rem;font-family:var(--mono);color:var(--text-dim);white-space:pre-wrap;margin-top:8px">'+JSON.stringify(d,null,2)+'</pre>';
-}
-window.addEventListener('DOMContentLoaded',function(){setPipelineMode('parallel');setTimeout(startRace,500)});
-</script>
-</body>
-</html>var startR=async function(){
-var btn=g("btnStartRace");btn.disabled=true;btn.textContent="Starting...";
-resetPipe();S.tt=0;S.w=null;S.pt=false;
-try{var r=await fetch("/api/start",{method:"POST"});if(!r.ok)throw new Error("HTTP "+r.status);S.ru=true;btn.textContent="Running...";setTimeout(function(){btn.disabled=false;btn.textContent="Start Race";},2000);}
-catch(e){console.error("Start err:",e);btn.disabled=false;btn.textContent="Start Race";}};
-var stopR=async function(){try{await fetch("/api/stop",{method:"POST"});S.ru=false;}catch(e){console.error("Stop err:",e);}};
-var perturb=async function(){var btn=g("btnPerturb");btn.disabled=true;try{await fetch("/api/perturb",{method:"POST"});toast("&#x26A0;&#xFE0F; Perturbation triggered! Watch reacquisition...");}catch(e){console.error("Perturb err:",e);}setTimeout(function(){btn.disabled=false;},1500);};
-var connect=function(){
-if(es)es.close();
-var dot=g("statusDot"),txt=g("statusText");dot.className="sd pending";txt.textContent="Connecting...";
-es=new EventSource("/stream");
-es.onopen=function(){dot.className="sd ok";txt.textContent="Connected";};
-es.addEventListener("tick",function(e){onTick(e.data);});
-es.addEventListener("status",function(e){onStatus(e.data);});
-es.addEventListener("pipeline",function(e){onPipeline(e.data);});
-es.onerror=function(){dot.className="sd err";txt.textContent="Disconnected - reconnecting...";es.close();if(rt)clearTimeout(rt);rt=setTimeout(connect,2000);};};
-window.startRace=startR;window.stopRace=stopR;window.perturb=perturb;window.runPipeline=runP;
-D.addEventListener("DOMContentLoaded",function(){connect();setTimeout(startR,500);});
-})();
-<\/script>
-</body>
-</html>
+<div class="toast" id="toast">⚠️ Perturbation triggered!</div>

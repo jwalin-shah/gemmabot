@@ -119,7 +119,7 @@ class World:
 
         for name, (bx, by) in self.bins.items():
             d.rectangle([bx - 36, by - 26, bx + 36, by + 26], outline=(95, 95, 95), width=3)
-            d.text((bx - 32, by - 8), name, fill=(95, 95, 95))
+            pass  # no text labels - Gemma sees the rectangle
 
         for obj in self.objects.values():
             d.ellipse(
@@ -134,7 +134,7 @@ class World:
                     fill=(20, 20, 20),
                     width=2,
                 )
-            d.text((obj.x - obj.radius, obj.y + obj.radius + 3), obj.label, fill=(30, 30, 30))
+            pass  # no text labels - Gemma sees color/shape
 
         g = self.gripper
         col = (205, 45, 45) if g.closed else (45, 120, 205)

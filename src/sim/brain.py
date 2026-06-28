@@ -1,9 +1,8 @@
 """The brain — Gemma 4 perceives the rendered scene and picks the next action.
 
 The model is given the image (with the zone grid), the instruction, the robot's
-own proprioception, and the *vocabulary* of object ids/labels it may reference —
-but never object positions. It must look at the image to decide which object and
-which zone. Coordinate precision comes from the skill layer (the id bridge).
+own proprioception — but NO object IDs or text labels. It must identify objects
+visually by their color, shape, marks, and position in the grid.
 """
 
 from __future__ import annotations
@@ -26,7 +25,10 @@ DECISION_SCHEMA = {
             "observed": {"type": "string", "description": "What you see in the image right now"},
             "reasoning": {"type": "string", "description": "One short sentence: why this action"},
             "skill": {"type": "string", "enum": ["pick", "place", "move_to", "stop", "done"]},
-            "target": {"type": "string", "description": "Exact object id or bin name; '' for stop/done"},
+            "target": {
+                "type": "string",
+                "description": "VISUAL description of the target: color, marks, zone. E.g. 'the cracked tan cup in Zone B' or 'the blue cup'. Empty for stop/done.",
+            },
             "target_zone": {
                 "type": "string",
                 "enum": ["A", "B", "C", "D", "E", "F", "none"],
@@ -39,27 +41,24 @@ DECISION_SCHEMA = {
 }
 
 SYSTEM_PROMPT = """You are the reasoning core of a tabletop robot arm. You see a camera image \
-with a labelled zone grid (Zone A-F). Each tick you choose the SINGLE next micro-action.
+with a zone grid (Zone A-F). The image has NO text labels - you must identify objects \
+by their VISUAL APPEARANCE only.
 
 Skills:
-- pick <object_id>   : approach AND grasp an object. This automatically moves the gripper \
-to the object over several ticks and closes when it arrives. To pick something up, issue \
-`pick` directly and keep issuing it until your robot state shows you are holding it. Do NOT \
-`move_to` an object first.
-- place <bin_name>   : carry the held object to a bin and release it.
-- move_to <id|bin>   : reposition the gripper WITHOUT grasping (rarely needed).
-- stop               : halt immediately (use if told to stop or a hazard appears).
-- done               : the instruction is fully satisfied.
+- pick <visual description> : approach AND grasp. Describe the target by how it looks.
+- place <bin_name>          : carry held object to a bin (rectangle on the table).
+- move_to <target>          : reposition (rarely needed).
+- stop                      : halt immediately.
+- done                      : task is fully satisfied.
 
 Rules:
-- LOOK at the image. Identify objects visually and report the zone you SEE the target in.
-- To grasp something, use `pick` and repeat it until your robot state says you are holding \
-it; the skill handles the approach automatically.
-- Once you are holding the target, `place` it where instructed, then output `done`.
-- Reference objects only by the exact ids you are given. Never invent coordinates.
-- The world can change between ticks (objects move, new commands arrive). Always decide \
-from the CURRENT image, not memory.
-- Respect constraints in the instruction (e.g. "don't touch the blue cup").
+- LOOK at each new image. Objects are colored circles. Some have marks (cracked = two diagonal black lines through a tan circle).
+- Identify objects by COLOR, MARKS, POSITION, and ZONE. Never use text labels.
+- Describe the target VISUALLY in the target field. The system resolves your description.
+- To grasp something, issue 'pick' each tick until robot state says you are holding it.
+- Once holding, 'place' it where instructed, then output 'done'.
+- The world changes between ticks. Always decide from the CURRENT image.
+- Respect constraints (e.g. "don't touch the blue cup").
 - Output one action only, matching the schema."""
 
 
@@ -74,13 +73,13 @@ class Decision:
     raw: str = ""
 
 
-def _vocab_block(labels: dict[str, str], bins: list[str]) -> str:
-    obj_lines = "\n".join(f"  - {oid}  (looks like: {lbl})" for oid, lbl in labels.items())
-    return f"Object ids you may reference:\n{obj_lines}\nBins: {', '.join(bins) or '(none)'}"
+def _describe_objects(world=None) -> str:
+    """Visual description - no IDs, just appearance hints."""
+    return "Objects on the table: colored circles. One tan cup has a crack mark (two diagonal black lines). Others are solid colored circles."
 
 
 class RobotBrain:
-    """Wraps a CerebrasClient (or any client exposing ``image_chat``)."""
+    """Wraps a CerebrasClient - perceives scene and picks action visually."""
 
     def __init__(self, client: CerebrasClient) -> None:
         self._client = client
@@ -95,9 +94,11 @@ class RobotBrain:
     ) -> Decision:
         prompt = (
             f"Instruction: {instruction}\n\n"
-            f"{_vocab_block(labels, bins)}\n\n"
-            f"Robot state: {proprioception or 'gripper empty'}\n\n"
-            "Look at the image and output the single next action."
+            f"Bins (rectangles on table for dropping objects): {', '.join(bins) if bins else 'none'}\n\n"
+            f"Robot state: {proprioception or 'gripper empty and open'}\n\n"
+            "LOOK at the image. Identify objects by their VISUAL APPEARANCE - color, marks, zone position. "
+            "Describe the target object visually (e.g. 'the cracked tan cup in Zone B'). "
+            "The system matches your visual description to the right object."
         )
         t0 = time.perf_counter()
         result = self._client.image_chat(
@@ -116,8 +117,10 @@ def _parse(content: str, latency_ms: float) -> Decision:
     try:
         data = json.loads(content)
     except (json.JSONDecodeError, TypeError):
-        return Decision(skill="stop", target="", reasoning="unparseable response",
-                        latency_ms=latency_ms, raw=content or "")
+        return Decision(
+            skill="stop", target="", reasoning="unparseable response",
+            latency_ms=latency_ms, raw=content or ""
+        )
     return Decision(
         skill=data.get("skill", "stop"),
         target=data.get("target", ""),
@@ -130,10 +133,7 @@ def _parse(content: str, latency_ms: float) -> Decision:
 
 
 class MockBrain:
-    """Offline brain for testing the physics spine without API calls.
-
-    With a world reference it drives a simple pick-the-cracked-cup-then-place
-    behaviour so you can verify the sim/skills before wiring in Gemma."""
+    """Offline brain - no API calls, uses world state directly."""
 
     def __init__(self, world: World | None = None) -> None:
         self._world = world
@@ -145,7 +145,11 @@ class MockBrain:
         bin_name = bins[0] if bins else ""
         if g.holding is None:
             target = "cracked_cup" if "cracked_cup" in labels else next(iter(labels), "")
-            return Decision(skill="pick", target=target, target_zone="B",
-                            observed="mock view", reasoning="grab the cracked cup")
-        return Decision(skill="place", target=bin_name, target_zone="D",
-                        observed="mock view", reasoning="drop it in the bin")
+            return Decision(
+                skill="pick", target=target, target_zone="B",
+                observed="mock view", reasoning="grab the cracked cup"
+            )
+        return Decision(
+            skill="place", target=bin_name, target_zone="D",
+            observed="mock view", reasoning="drop it in the bin"
+        )
