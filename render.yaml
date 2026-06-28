@@ -2,14 +2,17 @@ services:
   - type: web
     name: gemmabot
     env: docker
-    repo: https://github.com/your-org/cerebras-gemma4-hackathon
+    repo: https://github.com/jwalin-shah/gemmabot
     plan: free
     region: oregon
+    autoDeploy: true
+    branch: main
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
     envVars:
       - key: CEREBRAS_API_KEY
-        sync: false  # manual entry in Render dashboard
+        sync: false
       - key: REASONING_EFFORT
         value: ""
       - key: DEMO_IMAGE_PATH
         value: examples/images/workspace.jpg
-    healthCheckPath: /
