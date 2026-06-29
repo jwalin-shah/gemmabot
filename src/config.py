@@ -32,7 +32,7 @@ TEMPERATURE: float = 0.2
 """Sampling temperature — low for deterministic agent outputs."""
 
 # --- Provider configuration ---
-LLM_PROVIDER: str = os.environ.get("LLM_PROVIDER", "openrouter")
+LLM_PROVIDER: str = os.environ.get("LLM_PROVIDER", "nvidia_nim")
 """Default LLM provider name: cerebras | openrouter | (custom)."""
 
 OPENROUTER_API_KEY: str = os.environ.get("OPENROUTER_API_KEY", "")

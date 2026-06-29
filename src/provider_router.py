@@ -22,7 +22,7 @@ from typing import Any, Callable
 
 MODEL_TIERS: dict[str, dict[str, str]] = {
     "vision_reasoning": {
-        "primary": "google/gemma-4-31b-it:free",
+        "primary": "google/gemma-4-31b-it",
         "fallback": "google/gemma-4-26b-a4b-it:free",
         "paid": "google/gemma-4-31b-it",
         "modality": "vision",
@@ -34,7 +34,7 @@ MODEL_TIERS: dict[str, dict[str, str]] = {
     },
     "object_labeling": {
         "primary": "nvidia/nemotron-nano-12b-v2-vl:free",
-        "fallback": "google/gemma-4-31b-it:free",
+        "fallback": "google/gemma-4-31b-it",
         "modality": "vision",
     },
     "text_reasoning": {

@@ -32,6 +32,7 @@ __all__: list[str] = [
     "InferenceResult",
     "CerebrasProvider",
     "OpenRouterProvider",
+    "NvidiaNimProvider",
     "ProviderRegistry",
 ]
 
@@ -361,6 +362,164 @@ class OpenRouterProvider(LLMProvider):
 # Provider Registry (singleton)
 # ---------------------------------------------------------------------------
 
+
+class NvidiaNimProvider(LLMProvider):
+    """Nvidia NIM provider using httpx (OpenAI-compatible API).
+
+    Nvidia NIM hosts google/gemma-4-31b-it and many other models.
+    API key is resolved at runtime via Infisical (agentlib.py secret /providers/nvidia api_key).
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str | None = None,
+        base_url: str | None = None,
+        timeout_s: int = 120,
+    ) -> None:
+        self._api_key = api_key
+        self._model = model or "google/gemma-4-31b-it"
+        self._base_url = (base_url or "https://integrate.api.nvidia.com/v1").rstrip("/")
+        self._timeout_s = timeout_s
+        self._http_client: httpx.Client | None = None
+        self._key_resolved = False
+
+    def _resolve_key(self) -> str:
+        """Resolve the NIM API key from the environment or Infisical."""
+        if self._api_key:
+            return self._api_key
+        # Check environment first
+        key = os.environ.get("NVIDIA_NIM_API_KEY") or os.environ.get("NVIDIA_API_KEY", "")
+        if key:
+            self._api_key = key
+            return key
+        # Try Infisical via agentlib
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["agentlib.py", "secret", "/providers/nvidia", "api_key"],
+                capture_output=True, text=True, timeout=10
+            )
+            key = result.stdout.strip()
+            if key:
+                self._api_key = key
+                return key
+        except Exception:
+            pass
+        return ""
+
+    @property
+    def _client(self) -> httpx.Client:
+        if self._http_client is None:
+            key = self._resolve_key()
+            self._http_client = httpx.Client(
+                base_url=self._base_url,
+                timeout=httpx.Timeout(self._timeout_s, connect=10.0),
+                headers={
+                    "Authorization": f"Bearer {key}",
+                    "Content-Type": "application/json",
+                },
+            )
+        return self._http_client
+
+    def chat(self, messages, tools=None, stream=False, **kwargs):
+        if stream:
+            return self._stream(messages, tools=tools, **kwargs)
+        body = self._build_body(messages, tools=tools, **kwargs)
+        start = time.perf_counter()
+        response = self._client.post("/chat/completions", json=body)
+        elapsed = time.perf_counter() - start
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError:
+            detail = response.text[:500]
+            raise RuntimeError(f"NIM API error {response.status_code}: {detail}") from None
+        data = response.json()
+        return self._parse_response(data, elapsed)
+
+    def image_chat(self, prompt, image_b64, system_prompt=None, **kwargs):
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": image_b64, "detail": "high"}},
+            ],
+        })
+        return self.chat(messages, **kwargs)
+
+    def name(self):
+        return "nvidia_nim"
+
+    def is_available(self):
+        key = self._resolve_key()
+        return bool(key)
+
+    def _build_body(self, messages, tools=None, **kwargs):
+        system_prompt = kwargs.pop("system_prompt", None)
+        if system_prompt:
+            messages = [{"role": "system", "content": system_prompt}, *messages]
+        max_tokens = kwargs.pop("max_tokens", kwargs.pop("max_completion_tokens", 1024))
+        temperature = kwargs.pop("temperature", 0.2)
+        body = {
+            "model": self._model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        response_format = kwargs.pop("response_format", None)
+        if response_format:
+            body["response_format"] = response_format
+        if tools:
+            body["tools"] = tools
+            body["tool_choice"] = kwargs.pop("tool_choice", "auto")
+            body["parallel_tool_calls"] = kwargs.pop("parallel_tool_calls", True)
+        body.update(kwargs)
+        return body
+
+    def _stream(self, messages, tools=None, **kwargs):
+        body = self._build_body(messages, tools=tools, **kwargs)
+        body["stream"] = True
+        body["stream_options"] = {"include_usage": True}
+        content_parts = []
+        final_usage = {}
+        with self._client.stream("POST", "/chat/completions", json=body) as resp:
+            resp.raise_for_status()
+            for line in resp.iter_lines():
+                if not line.startswith("data: "):
+                    continue
+                payload = line[6:]
+                if payload == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+                choices = chunk.get("choices", [])
+                if choices and choices[0].get("delta", {}).get("content"):
+                    content_parts.append(choices[0]["delta"]["content"])
+                if chunk.get("usage"):
+                    final_usage = chunk["usage"]
+        return InferenceResult(content="".join(content_parts), model=self._model, usage=final_usage, latency_s=0.0)
+
+    def _parse_response(self, data, elapsed):
+        choice = data["choices"][0]
+        message = choice["message"]
+        content = message.get("content", "") or ""
+        model = data.get("model", self._model)
+        usage = data.get("usage", {})
+        tool_calls = None
+        if message.get("tool_calls"):
+            tool_calls = [
+                {"id": tc["id"], "type": tc["type"],
+                 "function": {"name": tc["function"]["name"], "arguments": tc["function"]["arguments"]}}
+                for tc in message["tool_calls"]
+            ]
+        return InferenceResult(content=content, model=model, usage=usage, latency_s=elapsed, tool_calls=tool_calls)
+
+
 class ProviderRegistry:
     """Singleton registry of available LLM providers.
 
@@ -490,6 +649,7 @@ class ProviderRegistry:
         return {
             "cerebras": CerebrasProvider(),
             "openrouter": OpenRouterProvider(),
+            "nvidia_nim": NvidiaNimProvider(),
         }
 
     @classmethod
