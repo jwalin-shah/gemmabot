@@ -16,9 +16,38 @@
   .pane{display:none}
   .pane.active{display:block}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+  /* Cam-box with canvas overlay */
   .cam-box{background:#131a2b;border:1px solid #1e2a45;border-radius:8px;padding:10px}
   .cam-box h3{font-size:11px;color:#8892b0;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px}
-  .cam-box img{width:100%;border-radius:4px}
+  .cam-box .cam-wrap{position:relative;width:100%}
+  .cam-box .cam-wrap img{width:100%;border-radius:4px;display:block}
+  .cam-box .cam-wrap canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;border-radius:4px}
+
+  /* Debug toggle */
+  .debug-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0}
+  .debug-bar label{font-size:11px;color:#8892b0;cursor:pointer;display:flex;align-items:center;gap:4px}
+  .debug-bar input[type="checkbox"]{accent-color:#00d4aa;width:14px;height:14px;cursor:pointer}
+  .layer-btn{background:#1e2a45;color:#8892b0;border:1px solid #1e2a45;padding:4px 12px;border-radius:4px;font-size:10px;cursor:pointer;text-transform:uppercase;letter-spacing:0.3px}
+  .layer-btn:hover{border-color:#4a9eff;color:#e8edf5}
+  .layer-btn.active{background:#1e3a2f;color:#00d4aa;border-color:#00d4aa}
+
+  /* Detection panel */
+  .detection-list{display:flex;flex-direction:column;gap:3px;max-height:240px;overflow-y:auto;padding:2px 0}
+  .detection-item{display:grid;grid-template-columns:14px 1fr 55px 55px;gap:6px;align-items:center;padding:3px 6px;background:#0d1322;border-radius:3px;font-size:10px;border-left:2px solid #1e2a45}
+  .detection-item .color-dot{width:10px;height:10px;border-radius:50%;border:1px solid #1e2a45}
+  .detection-item .det-label{color:#e8edf5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .detection-item .det-conf{color:#8892b0;text-align:right}
+  .detection-item .det-dist{color:#4a9eff;text-align:right;font-variant-numeric:tabular-nums}
+  .detection-item .det-dist.close{color:#50f050}
+  .detection-empty{color:#4a3f30;font-size:10px;padding:6px;font-style:italic}
+
+  /* Reasoning panel */
+  .reasoning-panel{background:#0d1322;border-radius:6px;padding:8px;margin-top:6px;display:none}
+  .reasoning-panel .reasoning-text{font-size:11px;color:#ffd700;font-style:italic;line-height:1.5}
+  .reasoning-panel .reasoning-tool{font-size:10px;color:#5a6485;font-family:monospace;margin-top:4px;padding-top:4px;border-top:1px solid #1e2a45}
+
+  /* existing styles below */
   .panel{background:#131a2b;border:1px solid #1e2a45;border-radius:8px;padding:12px;margin-top:12px}
   .panel h3{font-size:12px;color:#00d4aa;margin-bottom:8px}
   textarea, select{width:100%;background:#0a0e17;color:#e8edf5;border:1px solid #1e2a45;border-radius:6px;padding:8px;font-size:13px;margin:4px 0;resize:vertical;font-family:inherit}
@@ -36,7 +65,6 @@
   .stage-grasp{background:#1e3a2f;color:#00d4aa}
   .stage-lift{background:#3a1e3a;color:#c080f0}
   .stage-done{background:#1e3a1e;color:#50f050}
-  /* Verify badges */
   .verify-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
   .vchip{padding:3px 10px;border-radius:14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;background:#1a1f33;color:#5a6485;border:1px solid #1e2a45}
   .vchip.ok{background:#1e3a2f;color:#00d4aa;border-color:#1e3a2f}
@@ -69,8 +97,8 @@
 <p class="sub">Cerebras inference · robosuite MuJoCo · ground-truth verification + replay</p>
 
 <div class="tabs">
-  <button class="tab active" data-pane="live" onclick="switchTab(\'live\')">Live</button>
-  <button class="tab" data-pane="replay" onclick="switchTab(\'replay\')">Replay</button>
+  <button class="tab active" data-pane="live" onclick="switchTab('live')">Live</button>
+  <button class="tab" data-pane="replay" onclick="switchTab('replay')">Replay</button>
 </div>
 
 <!-- ===== LIVE PANE ===== -->
@@ -95,12 +123,26 @@
 <div class="grid">
   <div class="cam-box">
     <h3>Birdview (top-down + zone grid)</h3>
-    <img id="birdview" src="" alt="Birdview">
+    <div class="cam-wrap">
+      <img id="birdview" src="" alt="Birdview">
+      <canvas id="birdviewCanvas" width="384" height="384"></canvas>
+    </div>
   </div>
   <div class="cam-box">
     <h3>Front View (side depth)</h3>
-    <img id="frontview" src="" alt="Front View">
+    <div class="cam-wrap">
+      <img id="frontview" src="" alt="Front View">
+      <canvas id="frontviewCanvas" width="384" height="384"></canvas>
+    </div>
   </div>
+</div>
+
+<!-- Debug overlay controls -->
+<div class="debug-bar">
+  <label><input type="checkbox" id="debugCheck" onchange="toggleDebug()"> Debug</label>
+  <button class="layer-btn active" data-layer="masks" onclick="toggleLayer(this)">Masks</button>
+  <button class="layer-btn active" data-layer="bboxes" onclick="toggleLayer(this)">Bboxes</button>
+  <button class="layer-btn active" data-layer="vectors" onclick="toggleLayer(this)">Vectors</button>
 </div>
 
 <div class="panel">
@@ -126,22 +168,34 @@
   <div class="panel">
     <h3>Gemma Reasoning</h3>
     <div id="output">Waiting for first step...</div>
+    <!-- Reasoning overlay panel -->
+    <div class="reasoning-panel" id="reasoningPanel">
+      <div class="reasoning-text" id="reasoningText"></div>
+      <div class="reasoning-tool" id="reasoningTool"></div>
+    </div>
   </div>
-  <div class="panel">
-    <h3>State</h3>
-    <div class="info-row" style="flex-direction:column;gap:4px">
-      <div>Stage: <span id="stageBadge" class="stage-badge stage-approach">-</span></div>
-      <div>Latency: <span class="val" id="latency">-</span> ms</div>
-      <div>Step: <span class="val" id="stepNum">0</span></div>
-      <div>EE pos: <span class="val" id="eePos">-</span></div>
-      <div>EE target: <span class="val" id="eeTarget">-</span></div>
-      <div>Gripper: <span class="val" id="gripState">-</span></div>
-      <div>Run id: <span class="val" id="runId">-</span></div>
+  <div style="display:flex;flex-direction:column;gap:12px;margin-top:12px">
+    <div class="panel" style="margin-top:0">
+      <h3>State</h3>
+      <div class="info-row" style="flex-direction:column;gap:4px">
+        <div>Stage: <span id="stageBadge" class="stage-badge stage-approach">-</span></div>
+        <div>Latency: <span class="val" id="latency">-</span> ms</div>
+        <div>Step: <span class="val" id="stepNum">0</span></div>
+        <div>EE pos: <span class="val" id="eePos">-</span></div>
+        <div>EE target: <span class="val" id="eeTarget">-</span></div>
+        <div>Gripper: <span class="val" id="gripState">-</span></div>
+        <div>Run id: <span class="val" id="runId">-</span></div>
+      </div>
+    </div>
+    <!-- Detection panel -->
+    <div class="panel" id="detectionPanel" style="margin-top:0;display:none">
+      <h3>Detections</h3>
+      <div id="detectionList" class="detection-list"></div>
     </div>
   </div>
 </div>
 
-<div class="panel">
+<div class="panel" style="margin-top:12px">
   <h3>Step History (Gemma context)</h3>
   <div id="history"></div>
 </div>
@@ -169,9 +223,9 @@
       </div>
     </div>
     <div class="flex" style="margin-top:8px">
-      <button class="btn btn-s" onclick="rPrev()">← prev</button>
+      <button class="btn btn-s" onclick="rPrev()"> &larr; prev</button>
       <button class="btn" onclick="rPlay()" id="rPlayBtn">Play</button>
-      <button class="btn btn-s" onclick="rNext()">next →</button>
+      <button class="btn btn-s" onclick="rNext()">next &rarr;</button>
       <span id="rPos" style="margin-left:12px;font-size:12px;color:#8892b0"></span>
     </div>
     <div class="verify-row" id="rVerify" style="margin-top:10px"></div>
@@ -184,12 +238,14 @@
 const $ = id => document.getElementById(id);
 const VERDICT_KEYS = ["reached","grasped","lifted","placed"];
 
+// Tab switching
 function switchTab(name) {
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.pane === name));
   document.querySelectorAll(".pane").forEach(p => p.classList.toggle("active", p.id === "pane-" + name));
   if (name === "replay") loadRuns();
 }
 
+// Task management
 function setTaskOptions(tasks, active) {
   const sel = $("taskPicker");
   sel.innerHTML = "";
@@ -205,10 +261,100 @@ function setTaskOptions(tasks, active) {
 
 async function onTaskChange() {
   const key = $("taskPicker").value;
-  $("output").textContent = "Switching task to " + key + " — rebuilding env...";
+  $("output").textContent = "Switching task to " + key + " -- rebuilding env...";
   await resetEnv(key);
 }
 
+// Debug overlay controls
+let debugLayerState = { masks: true, bboxes: true, vectors: true };
+
+function toggleDebug() {
+  const on = $("debugCheck").checked;
+  [$("birdviewCanvas"), $("frontviewCanvas")].forEach(c => {
+    if (c) c.style.display = on ? "block" : "none";
+  });
+  $("detectionPanel").style.display = on ? "block" : "none";
+  $("reasoningPanel").style.display = on ? "block" : "none";
+  document.querySelectorAll(".layer-btn").forEach(b => {
+    b.style.opacity = on ? "1" : "0.4";
+  });
+}
+
+function toggleLayer(btn) {
+  btn.classList.toggle("active");
+  const layer = btn.dataset.layer;
+  debugLayerState[layer] = btn.classList.contains("active");
+}
+
+function drawOnCanvas(canvasId, imgId, data) {
+  const canvas = $(canvasId);
+  const img = $(imgId);
+  if (!canvas || !img) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (!data) return;
+
+  // If data contains a debug_view image, draw it
+  if (data.debug_view) {
+    const debugImg = new Image();
+    debugImg.onload = () => {
+      ctx.drawImage(debugImg, 0, 0, canvas.width, canvas.height);
+    };
+    debugImg.src = data.debug_view;
+  }
+}
+
+function renderDetectionList(detections) {
+  const panel = $("detectionPanel");
+  const list = $("detectionList");
+  if (!detections || detections.length === 0) {
+    panel.style.display = "none";
+    return;
+  }
+
+  panel.style.display = "block";
+
+  list.innerHTML = detections.map((d) => {
+    const label = d.label || d.color_name || "object";
+    const conf = d.confidence !== undefined ? (d.confidence * 100).toFixed(0) + "%" : "-";
+    const dotColor = d.mean_rgb ? "rgb(" + d.mean_rgb.join(",") + ")" : "#4a9eff";
+    let distStr = "-";
+    if (d.world_xyz) {
+      distStr = "3D";
+    }
+    return '<div class="detection-item">' +
+      '<span class="color-dot" style="background:' + dotColor + '"></span>' +
+      '<span class="det-label">' + label + '</span>' +
+      '<span class="det-conf">' + conf + '</span>' +
+      '<span class="det-dist">' + distStr + '</span>' +
+      '</div>';
+  }).join("");
+}
+
+function renderReasoning(reasoning, tool, params) {
+  const panel = $("reasoningPanel");
+  const textEl = $("reasoningText");
+  const toolEl = $("reasoningTool");
+  if (!reasoning) {
+    panel.style.display = "none";
+    return;
+  }
+  panel.style.display = "block";
+  textEl.textContent = reasoning;
+  if (tool) {
+    let toolInfo = "Tool: " + tool;
+    if (params) toolInfo += " | Args: " + JSON.stringify(params);
+    toolEl.textContent = toolInfo;
+    toolEl.style.display = "block";
+  } else {
+    toolEl.style.display = "none";
+  }
+}
+
+// Paint functions
 async function init() {
   try {
     const tr = await fetch("/api/tasks").then(r => r.json());
@@ -225,10 +371,34 @@ async function init() {
 function paintSnap(d) {
   if (d.birdview) $("birdview").src = d.birdview;
   if (d.frontview) $("frontview").src = d.frontview;
-  if (d.ee) $("eePos").textContent = d.ee.map(v=>v.toFixed(3)).join(", ");
+  if (d.ee) $("eePos").textContent = d.ee.map(v => v.toFixed(3)).join(", ");
   if (d.gripper_open !== undefined) $("gripState").textContent = d.gripper_open ? "OPEN" : "CLOSED";
   paintObjects(d.objects, d.task);
   if (d.task) $("taskDesc").textContent = d.task.description || "";
+
+  // Debug overlay: draw debug_view images on canvases
+  const dbv = d.debug_birdview || null;
+  const dfv = d.debug_frontview || null;
+  if (dbv || dfv) {
+    drawOnCanvas("birdviewCanvas", "birdview", { debug_view: dbv });
+    drawOnCanvas("frontviewCanvas", "frontview", { debug_view: dfv });
+    // Auto-show debug if overlay data arrives
+    const debugCheck = document.querySelector("#debugCheck");
+    if (!debugCheck.checked) {
+      debugCheck.checked = true;
+      toggleDebug();
+    }
+  }
+
+  // Detections
+  if (d.detections) {
+    renderDetectionList(d.detections);
+  }
+
+  // Reasoning
+  if (d.reasoning_text) {
+    renderReasoning(d.reasoning_text, d.reasoning_tool, d.reasoning_params);
+  }
 }
 
 function paintObjects(objs, task) {
@@ -236,10 +406,10 @@ function paintObjects(objs, task) {
   const labelFor = {};
   if (task && task.objects) task.objects.forEach(o => labelFor[o.key] = o.label);
   const target = task ? task.target_object : null;
-  $("objList").innerHTML = Object.entries(objs).map(([k,v]) => {
+  $("objList").innerHTML = Object.entries(objs).map(([k, v]) => {
     const cls = (k === target) ? "obj-line target" : "obj-line";
     const lbl = labelFor[k] || k;
-    return `<div class="${cls}">${lbl}: (${v.map(x=>x.toFixed(3)).join(", ")})${k===target?" ← target":""}</div>`;
+    return '<div class="' + cls + '">' + lbl + ': (' + v.map(x => x.toFixed(3)).join(", ") + ')' + (k === target ? ' &larr; target' : '') + '</div>';
   }).join("");
 }
 
@@ -249,7 +419,7 @@ function paintVerdict(v, container) {
   const set = (id, ok) => {
     const el = (container.getElementById ? container.getElementById(id) : document.getElementById(id));
     if (!el) return;
-    el.classList.remove("ok","fail","success");
+    el.classList.remove("ok", "fail", "success");
     el.classList.add(ok ? "ok" : "fail");
   };
   set("vReached", v.reached);
@@ -258,12 +428,13 @@ function paintVerdict(v, container) {
   set("vPlaced", v.placed);
   const succ = document.getElementById("vSuccess");
   if (succ) {
-    succ.classList.remove("ok","fail","success");
+    succ.classList.remove("ok", "fail", "success");
     succ.classList.add(v.success ? "success" : "fail");
   }
   document.getElementById("verifyNotes").textContent = v.notes || "";
 }
 
+// Step execution
 async function runStep() {
   const btn = $("stepBtn"); btn.disabled = true; btn.textContent = "Gemma thinking...";
   $("output").textContent = "Calling Gemma 4 with composite image...";
@@ -284,8 +455,8 @@ async function runStep() {
     const badge = $("stageBadge");
     badge.textContent = go.stage || "-";
     badge.className = "stage-badge stage-" + (go.stage || "approach");
-    if (d.ee) $("eePos").textContent = d.ee.map(v=>v.toFixed(3)).join(", ");
-    if (d.ee_target) $("eeTarget").textContent = d.ee_target.map(v=>v.toFixed(3)).join(", ");
+    if (d.ee) $("eePos").textContent = d.ee.map(v => v.toFixed(3)).join(", ");
+    if (d.ee_target) $("eeTarget").textContent = d.ee_target.map(v => v.toFixed(3)).join(", ");
     if (d.gripper_open !== undefined) $("gripState").textContent = d.gripper_open ? "OPEN" : "CLOSED";
     $("stepNum").textContent = d.step;
     $("latency").textContent = d.latency_ms;
@@ -298,22 +469,30 @@ async function runStep() {
     }
     if (d.history) {
       $("history").innerHTML = d.history.slice().reverse().map(h =>
-        `<div class="history-item">Step ${h.step}: target=(${h.tx.toFixed(2)},${h.ty.toFixed(2)},${h.tz.toFixed(2)}) | ${h.grip} | ${h.stage} | "${(h.reasoning||"").substring(0,80)}"</div>`
+        '<div class="history-item">Step ' + h.step +
+        ': target=(' + h.tx.toFixed(2) + ',' + h.ty.toFixed(2) + ',' + h.tz.toFixed(2) + ') | ' +
+        h.grip + ' | ' + h.stage + ' | \"' + (h.reasoning || "").substring(0, 80) + '\"</div>'
       ).join("");
     }
     if (d.verdict && d.verdict.success) {
-      $("output").textContent += "\n\n✓ VERIFIED SUCCESS — physics confirms task complete.";
+      $("output").textContent += "\n\n\u2713 VERIFIED SUCCESS -- physics confirms task complete.";
     }
+
+    // Debug / detection / reasoning render from step response
+    paintSnap(d);
+
     return d;
-  } catch(e) {
+  } catch (e) {
     $("output").textContent = "Error: " + e.message;
   } finally {
-    btn.disabled = false; btn.textContent = "Gemma Step";
+    btn.disabled = false;
+    btn.textContent = "Gemma Step";
   }
 }
 
 async function runUntilDone() {
-  const btn = $("autoBtn"); btn.disabled = true;
+  const btn = $("autoBtn");
+  btn.disabled = true;
   try {
     for (let i = 0; i < 15; i++) {
       const d = await runStep();
@@ -326,12 +505,13 @@ async function runUntilDone() {
 }
 
 function animateFrames(frames) {
-  const c = $("frames"); c.innerHTML = "";
+  const c = $("frames");
+  c.innerHTML = "";
   frames.forEach((f, i) => {
     const img = document.createElement("img");
     img.src = f.birdview;
-    img.title = "Frame " + (i+1) + " EE: " + (f.ee || []).join(",");
-    img.className = (i === frames.length-1 && f.final) ? "animate" : "";
+    img.title = "Frame " + (i + 1) + " EE: " + (f.ee || []).join(",");
+    img.className = (i === frames.length - 1 && f.final) ? "animate" : "";
     c.appendChild(img);
   });
   c.scrollLeft = c.scrollWidth;
@@ -346,37 +526,43 @@ async function resetEnv(task) {
     $("output").textContent = "Environment reset. Ready.";
     $("framePanel").style.display = "none";
     $("history").innerHTML = "";
-    $("stageBadge").textContent = "-"; $("stageBadge").className = "stage-badge stage-approach";
-    ["vReached","vGrasped","vLifted","vPlaced","vSuccess"].forEach(id => {
-      const el = $(id); el.classList.remove("ok","fail","success");
+    $("stageBadge").textContent = "-";
+    $("stageBadge").className = "stage-badge stage-approach";
+    ["vReached", "vGrasped", "vLifted", "vPlaced", "vSuccess"].forEach(id => {
+      const el = $(id);
+      el.classList.remove("ok", "fail", "success");
     });
     $("verifyNotes").textContent = "";
-  } catch(e) {
+  } catch (e) {
     $("output").textContent = "Reset error: " + e.message;
   }
 }
 
-// ── Replay ──────────────────────────────────────────────
+// Replay
 let replay = { run_id: null, steps: [], idx: 0, timer: null };
 
 async function loadRuns() {
   const r = await fetch("/api/runs").then(r => r.json());
   const list = r.runs || [];
-  if (!list.length) { $("runList").innerHTML = "<div style=\'font-size:12px;color:#8892b0\'>(no recorded runs yet — run a task on the Live tab.)</div>"; return; }
+  if (!list.length) {
+    $("runList").innerHTML = '<div style="font-size:12px;color:#8892b0">(no recorded runs yet -- run a task on the Live tab.)</div>';
+    return;
+  }
   $("runList").innerHTML = list.map(m => {
     const cls = m.success ? "ok" : "fail";
     const when = new Date(m.started_at * 1000).toLocaleString();
-    return `<div class="runrow" onclick="openReplay(\'${m.run_id}\')">
-      <div><div class="runtitle">${m.task}</div><div class="runmeta">${when} · ${m.num_steps} steps</div></div>
-      <div class="runmeta">${(m.last_verdict && m.last_verdict.distance_to_target!==undefined) ? "d=" + (m.last_verdict.distance_to_target*100).toFixed(1) + "cm" : ""}</div>
-      <div class="runtag ${cls}">${m.success ? "VERIFIED" : "did not finish"}</div>
-    </div>`;
+    return '<div class="runrow" onclick="openReplay('' + m.run_id + '')">' +
+      '<div><div class="runtitle">' + m.task + '</div><div class="runmeta">' + when + ' &middot; ' + m.num_steps + ' steps</div></div>' +
+      '<div class="runmeta">' + (m.last_verdict && m.last_verdict.distance_to_target !== undefined ? "d=" + (m.last_verdict.distance_to_target * 100).toFixed(1) + "cm" : "") + '</div>' +
+      '<div class="runtag ' + cls + '">' + (m.success ? "VERIFIED" : "did not finish") + '</div></div>';
   }).join("");
 }
 
 async function openReplay(run_id) {
   const r = await fetch("/api/replay/" + encodeURIComponent(run_id)).then(r => r.json());
-  replay.run_id = run_id; replay.steps = r.steps || []; replay.idx = 0;
+  replay.run_id = run_id;
+  replay.steps = r.steps || [];
+  replay.idx = 0;
   $("replayPlayer").style.display = "block";
   $("replayTitle").textContent = run_id + " (" + replay.steps.length + " steps)";
   paintReplayStep();
@@ -391,12 +577,12 @@ function paintReplayStep() {
   const i = s.intent || {};
   $("rOutput").textContent =
     "Target: " + (i.target || []).join(", ") + "\n" +
-    "Gripper: " + (i.gripper || "?") + " · Stage: " + (i.stage || "?") + "\n" +
+    "Gripper: " + (i.gripper || "?") + " &middot; Stage: " + (i.stage || "?") + "\n" +
     "Reasoning: " + (i.reasoning || "");
   const v = s.verdict || {};
-  $("rVerify").innerHTML = ["reached","grasped","lifted","placed"].map(k =>
-    `<span class="vchip ${v[k] ? "ok" : "fail"}">${k}</span>`
-  ).join("") + `<span class="vchip ${v.success ? "success" : "fail"}">${v.success ? "SUCCESS" : "in progress"}</span>`;
+  $("rVerify").innerHTML = ["reached", "grasped", "lifted", "placed"].map(k =>
+    '<span class="vchip ' + (v[k] ? "ok" : "fail") + '">' + k + '</span>'
+  ).join("") + '<span class="vchip ' + (v.success ? "success" : "fail") + '">' + (v.success ? "SUCCESS" : "in progress") + '</span>';
   $("replayStatus").textContent = v.notes || "";
 }
 
@@ -408,7 +594,8 @@ function rPlay() {
   btn.textContent = "Pause";
   replay.timer = setInterval(() => {
     if (replay.idx >= replay.steps.length - 1) { clearInterval(replay.timer); replay.timer = null; btn.textContent = "Play"; return; }
-    replay.idx++; paintReplayStep();
+    replay.idx++;
+    paintReplayStep();
   }, 600);
 }
 

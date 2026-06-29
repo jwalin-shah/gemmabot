@@ -41,7 +41,9 @@ from src.web.lib.imaging import img_to_b64, overlay_grid  # noqa: E402
 from src.web.lib.recorder import RunRecorder, list_runs, load_run  # noqa: E402
 from src.web.lib import tasks as tasks_mod  # noqa: E402
 from src.web.lib.sim import PandaSim, Snapshot  # noqa: E402
-from src.web.lib.verify import env_success, verify  # noqa: E402
+from src.web.lib.verify import env_success, verify
+from src.web.lib.viz import generate_debug_composite  # noqa: E402
+from src.web.lib.perception import SamPerceptor  # noqa: E402  # noqa: E402
 
 
 app = FastAPI(title="Gemma 4 → Panda Robot")
@@ -65,6 +67,7 @@ _recorder: RunRecorder | None = None
 # Vision grounding module -- lazily initialised when first vision-mode step is
 # requested, so it does not slow down the initial page load.
 _vision_grounding: VisionGroundingModule | None = None
+_sam_perceptor: SamPerceptor | None = None
 
 
 def _snapshot_payload(snap: Snapshot) -> dict:
@@ -154,6 +157,35 @@ async def api_step(task: str | None = None, vision: bool = False) -> dict:
     # 1) Snapshot — what Gemma sees (ground truth here is used only to judge).
     snap_before = _sim.snapshot()
     prompt_task = task or _sim.task.description
+    
+    # 1b) SAM perception + debug visualization (non-vision mode)
+    _sam_debug_bird = None
+    _sam_debug_front = None
+    _sam_detections = []
+    try:
+        global _sam_perceptor
+        if _sam_perceptor is None:
+            _sam_perceptor = SamPerceptor()
+        # Run detection in parallel (quick, ~200ms on CPU)
+        dets_bird = _sam_perceptor.detect(snap_before.birdview)
+        dets_front = _sam_perceptor.detect(snap_before.frontview)
+        _sam_detections = [
+            {"label": d.label or f"obj_{i}", "cx": d.cx, "cy": d.cy,
+             "bbox": list(d.bbox), "world_xyz": list(d.world_xyz) if d.world_xyz else None,
+             "confidence": d.confidence, "color": d.color_name(), "source": d.source,
+             "area_px": d.area_px}
+            for i, d in enumerate(dets_bird)
+        ]
+        # Build debug composite
+        _sam_debug_bird = img_to_b64(generate_debug_composite(
+            snap_before.birdview, snap_before.frontview,
+            masks_bird=None, masks_front=None,
+            detections_bird=dets_bird, detections_front=dets_front,
+            ee_xy=(float(snap_before.ee_pos[0]), float(snap_before.ee_pos[1])),
+            reasoning=intent.reasoning if 'intent' in dir() else "",
+        ))
+    except Exception as exc:
+        _sam_debug_bird = None
 
     # Vision-mode setup: run the pixel-only pipeline and blind Gemma.
     vision_belief = None
@@ -249,6 +281,10 @@ async def api_step(task: str | None = None, vision: bool = False) -> dict:
 
     return {
         "frames": frames,
+        "debug_birdview": _sam_debug_bird if '_sam_debug_bird' in dir() else None,
+        "debug_frontview": _sam_debug_front if '_sam_debug_front' in dir() else None,
+        "detections": _sam_detections if '_sam_detections' in dir() else [],
+        "reasoning_text": intent.reasoning,
         "gemma_output": {
             "tool": intent.tool,
             "params": intent.params,
