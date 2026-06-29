@@ -6,6 +6,7 @@ dist/
 build/
 .venv/
 *.so
+*.pyc
 
 # Environment
 .env
@@ -14,7 +15,16 @@ build/
 # Project specific
 runs/
 *.log
+overnight_results/
+.cocoindex_code/
 
-# IDE
+# IDE / personal config
 .vscode/
 .idea/
+.claude/
+
+# Archive (old code kept locally, not part of the project)
+_archive/
+
+# Large binary example images
+examples/images/real/

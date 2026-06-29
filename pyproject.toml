@@ -1,27 +1,33 @@
-# TODO: configuration
-
 [project]
 name = "cerebras-gemma4-hackathon"
 version = "0.1.0"
-description = "Multi-agent robotics demo using Gemma 4 31B on Cerebras ultra-fast inference"
+description = "Gemma 4 31B robotics demo --- Cerebras Inference drives simulated and real robots"
 requires-python = ">=3.11"
 dependencies = [
     "cerebras-cloud-sdk>=1.67.0",
     "python-dotenv>=1.0.0",
     "Pillow>=10.0.0",
     "httpx>=0.27.0",
-    "numpy>=2.4.6",
+    "numpy>=2.4.0,<2.5.0",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.34.0",
     "sse-starlette>=2.2.0",
     "aiofiles>=24.1.0",
     "python-multipart>=0.0.12",
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "gymnasium>=1.0.0",
+    "gym-pusht>=0.1.0",
+    "gym-aloha>=0.1.4",
+    "lerobot>=0.1.0",
+    "scipy>=1.11.0",
+    "ultralytics>=8.4.82",
+    "h5py>=3.16.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-org/cerebras-gemma4-hackathon"
-Repository = "https://github.com/your-org/cerebras-gemma4-hackathon"
+Homepage = "https://github.com/jwalin-shah/gemmabot"
+Repository = "https://github.com/jwalin-shah/gemmabot"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-

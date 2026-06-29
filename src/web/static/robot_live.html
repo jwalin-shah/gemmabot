@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gemma 4 → Panda Robot</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0a0e17;color:#e8edf5;font-family:Inter,system-ui,sans-serif;padding:16px;max-width:1400px;margin:auto}
+  h1{background:linear-gradient(135deg,#00d4aa,#4a9eff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:20px;margin-bottom:4px}
+  .sub{color:#8892b0;font-size:12px;margin-bottom:12px}
+  .tabs{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid #1e2a45}
+  .tab{background:none;border:none;color:#8892b0;padding:8px 14px;cursor:pointer;font-size:13px;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab.active{color:#00d4aa;border-bottom-color:#00d4aa}
+  .tab:hover{color:#e8edf5}
+  .pane{display:none}
+  .pane.active{display:block}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .cam-box{background:#131a2b;border:1px solid #1e2a45;border-radius:8px;padding:10px}
+  .cam-box h3{font-size:11px;color:#8892b0;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px}
+  .cam-box img{width:100%;border-radius:4px}
+  .panel{background:#131a2b;border:1px solid #1e2a45;border-radius:8px;padding:12px;margin-top:12px}
+  .panel h3{font-size:12px;color:#00d4aa;margin-bottom:8px}
+  textarea, select{width:100%;background:#0a0e17;color:#e8edf5;border:1px solid #1e2a45;border-radius:6px;padding:8px;font-size:13px;margin:4px 0;resize:vertical;font-family:inherit}
+  .btn{background:linear-gradient(135deg,#00d4aa,#00b894);color:#0a0e17;border:none;padding:8px 18px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px;margin:3px}
+  .btn:hover{opacity:0.9}
+  .btn-s{background:#1e2a45;color:#8892b0;padding:5px 10px;font-size:11px}
+  .btn-danger{background:linear-gradient(135deg,#e74c3c,#c0392b)}
+  .flex{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .info-row{display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:#8892b0}
+  .info-row span{background:#0d1322;padding:3px 8px;border-radius:4px}
+  .info-row .val{color:#00d4aa;font-weight:600}
+  .stage-badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:10px;font-weight:700;text-transform:uppercase}
+  .stage-approach{background:#1e3a5f;color:#4a9eff}
+  .stage-adjust{background:#3a2f1e;color:#f0a050}
+  .stage-grasp{background:#1e3a2f;color:#00d4aa}
+  .stage-lift{background:#3a1e3a;color:#c080f0}
+  .stage-done{background:#1e3a1e;color:#50f050}
+  /* Verify badges */
+  .verify-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .vchip{padding:3px 10px;border-radius:14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;background:#1a1f33;color:#5a6485;border:1px solid #1e2a45}
+  .vchip.ok{background:#1e3a2f;color:#00d4aa;border-color:#1e3a2f}
+  .vchip.fail{background:#3a1e1e;color:#ff6b6b;border-color:#3a1e1e}
+  .vchip.success{background:linear-gradient(135deg,#1e3a1e,#1e3a2f);color:#50f050;border-color:#50f050}
+  #output{font-size:11px;color:#00d4aa;font-family:monospace;white-space:pre-wrap;background:#0a0e17;padding:8px;border-radius:4px;max-height:200px;overflow:auto}
+  #frames{display:flex;gap:8px;overflow-x:auto;padding:4px 0}
+  #frames img{height:120px;border-radius:4px;border:1px solid #1e2a45}
+  .history-item{font-size:10px;color:#8892b0;padding:4px 8px;background:#0d1322;border-radius:4px;margin:2px 0;border-left:2px solid #1e2a45}
+  .history-item.success{border-left-color:#50f050}
+  .history-item.fail{border-left-color:#ff6b6b}
+  .runrow{display:grid;grid-template-columns:1fr 80px 110px;gap:10px;align-items:center;padding:8px;background:#0d1322;border-radius:4px;margin:4px 0;cursor:pointer;border:1px solid transparent}
+  .runrow:hover{border-color:#1e2a45;background:#131a2b}
+  .runrow.selected{border-color:#00d4aa}
+  .runrow .runtitle{font-size:12px;color:#e8edf5}
+  .runrow .runmeta{font-size:10px;color:#8892b0}
+  .runrow .runtag{font-size:10px;font-weight:700;text-transform:uppercase;text-align:center;padding:3px 6px;border-radius:4px}
+  .runrow .runtag.ok{background:#1e3a2f;color:#50f050}
+  .runrow .runtag.fail{background:#3a1e1e;color:#ff6b6b}
+  .animate{animation:pulse 0.3s ease-in-out}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+  .obj-line{font-family:monospace;font-size:10px;color:#8892b0;padding:2px 0}
+  .obj-line.target{color:#ffd700}
+  #replayStatus{font-size:11px;color:#8892b0;margin-top:8px}
+</style>
+</head>
+<body>
+
+<h1>Gemma 4 Controls Panda Robot</h1>
+<p class="sub">Cerebras inference · robosuite MuJoCo · ground-truth verification + replay</p>
+
+<div class="tabs">
+  <button class="tab active" data-pane="live" onclick="switchTab(\'live\')">Live</button>
+  <button class="tab" data-pane="replay" onclick="switchTab(\'replay\')">Replay</button>
+</div>
+
+<!-- ===== LIVE PANE ===== -->
+<div class="pane active" id="pane-live">
+
+<div class="panel">
+  <h3>Task</h3>
+  <div class="flex" style="gap:8px;align-items:flex-end">
+    <div style="flex:1;min-width:240px">
+      <label style="font-size:10px;color:#8892b0;text-transform:uppercase">Choose a task</label>
+      <select id="taskPicker" onchange="onTaskChange()"></select>
+      <div id="taskDesc" style="font-size:11px;color:#8892b0;margin-top:4px"></div>
+    </div>
+  </div>
+  <div class="flex" style="margin-top:8px">
+    <button class="btn" onclick="runStep()" id="stepBtn">Gemma Step</button>
+    <button class="btn btn-s" onclick="runUntilDone()" id="autoBtn">Run until verified</button>
+    <button class="btn btn-danger" onclick="resetEnv()">Reset</button>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="cam-box">
+    <h3>Birdview (top-down + zone grid)</h3>
+    <img id="birdview" src="" alt="Birdview">
+  </div>
+  <div class="cam-box">
+    <h3>Front View (side depth)</h3>
+    <img id="frontview" src="" alt="Front View">
+  </div>
+</div>
+
+<div class="panel">
+  <h3>Verification (ground truth from physics)</h3>
+  <div class="verify-row" id="verifyRow">
+    <span class="vchip" id="vReached">reached</span>
+    <span class="vchip" id="vGrasped">grasped</span>
+    <span class="vchip" id="vLifted">lifted</span>
+    <span class="vchip" id="vPlaced">placed</span>
+    <span class="vchip" id="vSuccess">SUCCESS</span>
+  </div>
+  <div id="verifyNotes" style="font-size:11px;color:#8892b0;margin-top:6px"></div>
+  <div id="objList" style="margin-top:8px"></div>
+</div>
+
+<!-- Animation timeline -->
+<div class="panel" id="framePanel" style="display:none">
+  <h3>Motion Timeline</h3>
+  <div id="frames"></div>
+</div>
+
+<div class="grid" style="grid-template-columns:2fr 1fr">
+  <div class="panel">
+    <h3>Gemma Reasoning</h3>
+    <div id="output">Waiting for first step...</div>
+  </div>
+  <div class="panel">
+    <h3>State</h3>
+    <div class="info-row" style="flex-direction:column;gap:4px">
+      <div>Stage: <span id="stageBadge" class="stage-badge stage-approach">-</span></div>
+      <div>Latency: <span class="val" id="latency">-</span> ms</div>
+      <div>Step: <span class="val" id="stepNum">0</span></div>
+      <div>EE pos: <span class="val" id="eePos">-</span></div>
+      <div>EE target: <span class="val" id="eeTarget">-</span></div>
+      <div>Gripper: <span class="val" id="gripState">-</span></div>
+      <div>Run id: <span class="val" id="runId">-</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <h3>Step History (Gemma context)</h3>
+  <div id="history"></div>
+</div>
+
+</div><!-- /pane-live -->
+
+<!-- ===== REPLAY PANE ===== -->
+<div class="pane" id="pane-replay">
+  <div class="panel">
+    <h3>Saved runs</h3>
+    <button class="btn btn-s" onclick="loadRuns()">Refresh</button>
+    <div id="runList" style="margin-top:10px"></div>
+  </div>
+
+  <div class="panel" id="replayPlayer" style="display:none">
+    <h3>Replay: <span id="replayTitle"></span></h3>
+    <div class="grid">
+      <div class="cam-box">
+        <h3>Birdview</h3>
+        <img id="rBird" src="">
+      </div>
+      <div class="cam-box">
+        <h3>Front View</h3>
+        <img id="rFront" src="">
+      </div>
+    </div>
+    <div class="flex" style="margin-top:8px">
+      <button class="btn btn-s" onclick="rPrev()">← prev</button>
+      <button class="btn" onclick="rPlay()" id="rPlayBtn">Play</button>
+      <button class="btn btn-s" onclick="rNext()">next →</button>
+      <span id="rPos" style="margin-left:12px;font-size:12px;color:#8892b0"></span>
+    </div>
+    <div class="verify-row" id="rVerify" style="margin-top:10px"></div>
+    <div id="rOutput" style="font-size:11px;color:#00d4aa;font-family:monospace;white-space:pre-wrap;background:#0a0e17;padding:8px;border-radius:4px;margin-top:8px"></div>
+    <div id="replayStatus"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const VERDICT_KEYS = ["reached","grasped","lifted","placed"];
+
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.pane === name));
+  document.querySelectorAll(".pane").forEach(p => p.classList.toggle("active", p.id === "pane-" + name));
+  if (name === "replay") loadRuns();
+}
+
+function setTaskOptions(tasks, active) {
+  const sel = $("taskPicker");
+  sel.innerHTML = "";
+  tasks.forEach(t => {
+    const o = document.createElement("option");
+    o.value = t.key; o.textContent = t.label;
+    if (t.key === active) o.selected = true;
+    sel.appendChild(o);
+  });
+  const t = tasks.find(t => t.key === sel.value);
+  $("taskDesc").textContent = t ? t.description : "";
+}
+
+async function onTaskChange() {
+  const key = $("taskPicker").value;
+  $("output").textContent = "Switching task to " + key + " — rebuilding env...";
+  await resetEnv(key);
+}
+
+async function init() {
+  try {
+    const tr = await fetch("/api/tasks").then(r => r.json());
+    setTaskOptions(tr.tasks, tr.active);
+    const r = await fetch("/api/init?_t=" + Date.now());
+    const d = await r.json();
+    paintSnap(d);
+    $("output").textContent = "Ready. Pick a task and click Gemma Step (or Run until verified).";
+  } catch(e) {
+    $("output").textContent = "Init error: " + e.message;
+  }
+}
+
+function paintSnap(d) {
+  if (d.birdview) $("birdview").src = d.birdview;
+  if (d.frontview) $("frontview").src = d.frontview;
+  if (d.ee) $("eePos").textContent = d.ee.map(v=>v.toFixed(3)).join(", ");
+  if (d.gripper_open !== undefined) $("gripState").textContent = d.gripper_open ? "OPEN" : "CLOSED";
+  paintObjects(d.objects, d.task);
+  if (d.task) $("taskDesc").textContent = d.task.description || "";
+}
+
+function paintObjects(objs, task) {
+  if (!objs) { $("objList").innerHTML = ""; return; }
+  const labelFor = {};
+  if (task && task.objects) task.objects.forEach(o => labelFor[o.key] = o.label);
+  const target = task ? task.target_object : null;
+  $("objList").innerHTML = Object.entries(objs).map(([k,v]) => {
+    const cls = (k === target) ? "obj-line target" : "obj-line";
+    const lbl = labelFor[k] || k;
+    return `<div class="${cls}">${lbl}: (${v.map(x=>x.toFixed(3)).join(", ")})${k===target?" ← target":""}</div>`;
+  }).join("");
+}
+
+function paintVerdict(v, container) {
+  if (!container) container = document;
+  if (!v) return;
+  const set = (id, ok) => {
+    const el = (container.getElementById ? container.getElementById(id) : document.getElementById(id));
+    if (!el) return;
+    el.classList.remove("ok","fail","success");
+    el.classList.add(ok ? "ok" : "fail");
+  };
+  set("vReached", v.reached);
+  set("vGrasped", v.grasped);
+  set("vLifted", v.lifted);
+  set("vPlaced", v.placed);
+  const succ = document.getElementById("vSuccess");
+  if (succ) {
+    succ.classList.remove("ok","fail","success");
+    succ.classList.add(v.success ? "success" : "fail");
+  }
+  document.getElementById("verifyNotes").textContent = v.notes || "";
+}
+
+async function runStep() {
+  const btn = $("stepBtn"); btn.disabled = true; btn.textContent = "Gemma thinking...";
+  $("output").textContent = "Calling Gemma 4 with composite image...";
+  try {
+    const r = await fetch("/api/step?_t=" + Date.now());
+    const d = await r.json();
+    if (d.frames && d.frames.length > 0) {
+      const last = d.frames[d.frames.length - 1];
+      $("birdview").src = last.birdview;
+      $("frontview").src = last.frontview;
+    }
+    const go = d.gemma_output;
+    $("output").textContent =
+      "Target: " + go.target.join(", ") + "\n" +
+      "Gripper: " + go.gripper + "\n" +
+      "Stage: " + go.stage + "\n" +
+      "Reasoning: " + go.reasoning;
+    const badge = $("stageBadge");
+    badge.textContent = go.stage || "-";
+    badge.className = "stage-badge stage-" + (go.stage || "approach");
+    if (d.ee) $("eePos").textContent = d.ee.map(v=>v.toFixed(3)).join(", ");
+    if (d.ee_target) $("eeTarget").textContent = d.ee_target.map(v=>v.toFixed(3)).join(", ");
+    if (d.gripper_open !== undefined) $("gripState").textContent = d.gripper_open ? "OPEN" : "CLOSED";
+    $("stepNum").textContent = d.step;
+    $("latency").textContent = d.latency_ms;
+    $("runId").textContent = d.run_id || "-";
+    paintObjects(d.objects, d.task);
+    paintVerdict(d.verdict);
+    if (d.frames && d.frames.length > 1) {
+      $("framePanel").style.display = "block";
+      animateFrames(d.frames);
+    }
+    if (d.history) {
+      $("history").innerHTML = d.history.slice().reverse().map(h =>
+        `<div class="history-item">Step ${h.step}: target=(${h.tx.toFixed(2)},${h.ty.toFixed(2)},${h.tz.toFixed(2)}) | ${h.grip} | ${h.stage} | "${(h.reasoning||"").substring(0,80)}"</div>`
+      ).join("");
+    }
+    if (d.verdict && d.verdict.success) {
+      $("output").textContent += "\n\n✓ VERIFIED SUCCESS — physics confirms task complete.";
+    }
+    return d;
+  } catch(e) {
+    $("output").textContent = "Error: " + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = "Gemma Step";
+  }
+}
+
+async function runUntilDone() {
+  const btn = $("autoBtn"); btn.disabled = true;
+  try {
+    for (let i = 0; i < 15; i++) {
+      const d = await runStep();
+      if (!d) break;
+      if (d.verdict && d.verdict.success) break;
+      if (d.done) break;
+      await new Promise(res => setTimeout(res, 200));
+    }
+  } finally { btn.disabled = false; }
+}
+
+function animateFrames(frames) {
+  const c = $("frames"); c.innerHTML = "";
+  frames.forEach((f, i) => {
+    const img = document.createElement("img");
+    img.src = f.birdview;
+    img.title = "Frame " + (i+1) + " EE: " + (f.ee || []).join(",");
+    img.className = (i === frames.length-1 && f.final) ? "animate" : "";
+    c.appendChild(img);
+  });
+  c.scrollLeft = c.scrollWidth;
+}
+
+async function resetEnv(task) {
+  try {
+    const q = task ? ("?task=" + encodeURIComponent(task)) : "";
+    const r = await fetch("/api/reset" + q + (q ? "&" : "?") + "_t=" + Date.now());
+    const d = await r.json();
+    paintSnap(d);
+    $("output").textContent = "Environment reset. Ready.";
+    $("framePanel").style.display = "none";
+    $("history").innerHTML = "";
+    $("stageBadge").textContent = "-"; $("stageBadge").className = "stage-badge stage-approach";
+    ["vReached","vGrasped","vLifted","vPlaced","vSuccess"].forEach(id => {
+      const el = $(id); el.classList.remove("ok","fail","success");
+    });
+    $("verifyNotes").textContent = "";
+  } catch(e) {
+    $("output").textContent = "Reset error: " + e.message;
+  }
+}
+
+// ── Replay ──────────────────────────────────────────────
+let replay = { run_id: null, steps: [], idx: 0, timer: null };
+
+async function loadRuns() {
+  const r = await fetch("/api/runs").then(r => r.json());
+  const list = r.runs || [];
+  if (!list.length) { $("runList").innerHTML = "<div style=\'font-size:12px;color:#8892b0\'>(no recorded runs yet — run a task on the Live tab.)</div>"; return; }
+  $("runList").innerHTML = list.map(m => {
+    const cls = m.success ? "ok" : "fail";
+    const when = new Date(m.started_at * 1000).toLocaleString();
+    return `<div class="runrow" onclick="openReplay(\'${m.run_id}\')">
+      <div><div class="runtitle">${m.task}</div><div class="runmeta">${when} · ${m.num_steps} steps</div></div>
+      <div class="runmeta">${(m.last_verdict && m.last_verdict.distance_to_target!==undefined) ? "d=" + (m.last_verdict.distance_to_target*100).toFixed(1) + "cm" : ""}</div>
+      <div class="runtag ${cls}">${m.success ? "VERIFIED" : "did not finish"}</div>
+    </div>`;
+  }).join("");
+}
+
+async function openReplay(run_id) {
+  const r = await fetch("/api/replay/" + encodeURIComponent(run_id)).then(r => r.json());
+  replay.run_id = run_id; replay.steps = r.steps || []; replay.idx = 0;
+  $("replayPlayer").style.display = "block";
+  $("replayTitle").textContent = run_id + " (" + replay.steps.length + " steps)";
+  paintReplayStep();
+}
+
+function paintReplayStep() {
+  if (!replay.steps.length) return;
+  const s = replay.steps[replay.idx];
+  if (s.birdview) $("rBird").src = s.birdview;
+  if (s.frontview) $("rFront").src = s.frontview;
+  $("rPos").textContent = "Step " + (replay.idx + 1) + " / " + replay.steps.length;
+  const i = s.intent || {};
+  $("rOutput").textContent =
+    "Target: " + (i.target || []).join(", ") + "\n" +
+    "Gripper: " + (i.gripper || "?") + " · Stage: " + (i.stage || "?") + "\n" +
+    "Reasoning: " + (i.reasoning || "");
+  const v = s.verdict || {};
+  $("rVerify").innerHTML = ["reached","grasped","lifted","placed"].map(k =>
+    `<span class="vchip ${v[k] ? "ok" : "fail"}">${k}</span>`
+  ).join("") + `<span class="vchip ${v.success ? "success" : "fail"}">${v.success ? "SUCCESS" : "in progress"}</span>`;
+  $("replayStatus").textContent = v.notes || "";
+}
+
+function rNext() { if (replay.idx < replay.steps.length - 1) { replay.idx++; paintReplayStep(); } }
+function rPrev() { if (replay.idx > 0) { replay.idx--; paintReplayStep(); } }
+function rPlay() {
+  const btn = $("rPlayBtn");
+  if (replay.timer) { clearInterval(replay.timer); replay.timer = null; btn.textContent = "Play"; return; }
+  btn.textContent = "Pause";
+  replay.timer = setInterval(() => {
+    if (replay.idx >= replay.steps.length - 1) { clearInterval(replay.timer); replay.timer = null; btn.textContent = "Play"; return; }
+    replay.idx++; paintReplayStep();
+  }, 600);
+}
+
+window.onload = init;
+</script>
+</body>
+</html>

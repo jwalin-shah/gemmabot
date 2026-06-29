@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GemmaBot &mdash; Real Robot Vision</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0e17;color:#e8edf5;font-family:Inter,sans-serif;display:flex;flex-direction:column;align-items:center;padding:20px}
+h1{font-size:22px;font-weight:700;background:linear-gradient(135deg,#00d4aa,#4a9eff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px;text-align:center}
+.sub{color:#8892b0;font-size:13px;margin-bottom:20px;text-align:center}
+.container{display:flex;gap:20px;max-width:1200px;width:100%;flex-wrap:wrap;justify-content:center}
+.panel{background:#131a2b;border:1px solid #1e2a45;border-radius:10px;padding:16px}.img-panel{flex:2;min-width:600px;max-width:900px}
+.img-panel{flex:1;min-width:500px;max-width:700px}
+.info-panel{width:320px}
+#mainImg{width:100%;border-radius:6px;display:block;border:1px solid #1e2a45}
+.controls{display:flex;gap:8px;justify-content:center;margin:12px 0;flex-wrap:wrap}
+.btn{background:linear-gradient(135deg,#00d4aa,#00b894);color:#0a0e17;border:none;padding:8px 16px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px}
+.btn:hover{opacity:0.9}
+.btn-red{background:#ff6b6b}
+.btn-blue{background:linear-gradient(135deg,#4a9eff,#7c5cfc)}
+.info{color:#8892b0;font-size:12px;line-height:1.6}
+.info strong{color:#e8edf5}
+.info-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #1e2a45}
+.action-val{font-family:monospace;font-size:11px;color:#00d4aa;word-break:break-all}
+#status{color:#8892b0;font-size:12px;text-align:center;padding:8px;margin-top:8px}
+.loading{opacity:0.5;pointer-events:none}
+.error{color:#ff6b6b}
+</style>
+</head>
+<body>
+<h1>Real Robot Vision</h1>
+<p class="sub">ALOHA cabinet-opening dataset • Zone A-F grid • Cerebras Gemma 4</p>
+
+<div class="container">
+<div class="panel img-panel">
+<img id="mainImg" src="" alt="Robot camera frame">
+<div class="controls">
+<button class="btn" onclick="prevFrame()">← Prev</button>
+<button class="btn" onclick="nextFrame()">Next →</button>
+<button class="btn btn-red" onclick="resetSim()">↺ Reset</button>
+<button class="btn btn-blue" onclick="runPipeline()" id="pipeBtn">▶ Run Pipeline</button>
+</div>
+<div id="status">Loading first frame...</div>
+</div>
+
+<div class="panel info-panel">
+<h3 style="color:#00d4aa;margin-bottom:10px;font-size:14px">Frame Info</h3>
+<div class="info">
+<div class="info-row"><span>Dataset</span><span id="dsName" style="color:#4a9eff">—</span></div>
+<div class="info-row"><span>Episode</span><span id="epVal">—</span></div>
+<div class="info-row"><span>Frame</span><span id="frVal">— / —</span></div>
+<div class="info-row"><span>Resolution</span><span id="resVal">—</span></div>
+<div class="info-row"><span>Action</span><span class="action-val" id="actVal">—</span></div>
+</div>
+<div id="pipelineResult" style="margin-top:12px;display:none">
+<h3 style="color:#ffd700;margin-bottom:8px;font-size:14px">Pipeline Output</h3>
+<div id="pipeContent" class="info" style="font-size:11px;max-height:300px;overflow-y:auto"></div>
+</div>
+</div>
+</div>
+
+<script>
+let currentFrame = 0;
+let totalFrames = 0;
+
+async function loadFrame() {
+    document.getElementById('status').textContent = 'Loading frame ' + currentFrame + '...';
+    document.getElementById('mainImg').classList.add('loading');
+    try {
+        const r = await fetch('/api/real-image?episode=0&frame=' + currentFrame);
+        if (!r.ok) { throw new Error('HTTP ' + r.status); }
+        const d = await r.json();
+        document.getElementById('mainImg').src = d.image;
+        document.getElementById('dsName').textContent = d.dataset.split('/')[1] || d.dataset;
+        document.getElementById('epVal').textContent = d.episode;
+        document.getElementById('frVal').textContent = d.frame + ' / ' + (d.episode_frames || d.total_frames);
+        document.getElementById('resVal').textContent = d.width + 'x' + d.height;
+        document.getElementById('actVal').textContent = (d.action || []).slice(0,4).map(v => Number(v).toFixed(2)).join(', ') + '...';
+        if (d.total_frames) totalFrames = d.total_frames;
+                document.getElementById('status').textContent = 'Frame ' + d.frame + '/' + (d.episode_frames || d.total_frames) + ' | ' + d.width + 'x' + d.height;
+        document.getElementById('mainImg').classList.remove('loading');
+        document.getElementById('pipelineResult').style.display = 'none';
+    } catch(e) {
+        document.getElementById('status').textContent = 'Error: ' + e.message;
+        document.getElementById('status').className = 'error';
+        document.getElementById('mainImg').classList.remove('loading');
+    }
+}
+
+async function nextFrame() {
+    if (currentFrame < totalFrames - 1) { currentFrame++; loadFrame(); }
+}
+
+async function prevFrame() {
+    if (currentFrame > 0) { currentFrame--; loadFrame(); }
+}
+
+async function resetSim() {
+    currentFrame = 0; loadFrame();
+}
+
+async function runPipeline() {
+    const btn = document.getElementById('pipeBtn');
+    btn.disabled = true; btn.textContent = '⏳ Running...';
+    document.getElementById('pipelineResult').style.display = 'none';
+    try {
+        const r = await fetch('/api/pipeline/real', {method:'POST', signal:AbortSignal.timeout(60000)});
+        const d = await r.json();
+        document.getElementById('pipelineResult').style.display = 'block';
+        let html = '';
+        let content = '';
+        if (d.vision_analysis) content += '<div style=\"margin-bottom:8px\"><strong style=\"color:#4a9eff\">🔍 Vision:</strong><br><pre style=\"font-size:10px;white-space:pre-wrap\">' + d.vision_analysis.slice(0,300) + '</pre></div>';
+        if (d.action_plan) content += '<div style=\"margin-bottom:8px\"><strong style=\"color:#00d4aa\">🎯 Action:</strong><br><pre style=\"font-size:10px;white-space:pre-wrap\">' + d.action_plan.slice(0,300) + '</pre></div>';
+        if (d.safety_review) content += '<div style=\"margin-bottom:8px\"><strong style=\"color:#ffd700\">🛡️ Safety:</strong><br><pre style=\"font-size:10px;white-space:pre-wrap\">' + d.safety_review.slice(0,300) + '</pre></div>';
+        if (d.timing) content += '<div style=\"margin-top:8px;color:#8892b0\">⏱ ' + (d.timing.total_time_s * 1000).toFixed(0) + 'ms total</div>';
+        document.getElementById('pipeContent').innerHTML = content || '<span class=\"error\">No pipeline output</span>';
+        document.getElementById('pipeContent').innerHTML = html;
+    } catch(e) {
+        document.getElementById('pipelineResult').style.display = 'block';
+        document.getElementById('pipeContent').innerHTML = '<span class="error">Error: ' + e.message + '</span>';
+    }
+    btn.disabled = false; btn.textContent = '▶ Run Pipeline';
+}
+
+loadFrame();
+</script>
+</body>
+</html>

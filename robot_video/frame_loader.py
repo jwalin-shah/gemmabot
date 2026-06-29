@@ -17,7 +17,7 @@ import io
 import torch
 from PIL import Image
 
-from lerobot.datasets import LeRobotDataset
+from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
 
 class VideoFrame:

@@ -1,235 +1,101 @@
-# 🤖 GemmaBot — Multi-Agent Robotics Demo
+# GemmaBot
 
-**Powered by Gemma 4 31B on Cerebras Inference**
-
-[![Cerebras](https://img.shields.io/badge/Cerebras-00d4aa?style=flat-square)](https://cerebras.ai)
-[![Gemma 4](https://img.shields.io/badge/Gemma_4_31B-4285F4?style=flat-square)](https://blog.google/technology/developers/gemma-4/)
-[![Hackathon](https://img.shields.io/badge/Gemma_4_Hackathon-2026-ff6b6b?style=flat-square)](HACKATHON_RULES.md)
-
----
-
-## 🏆 Tracks Entered
-
-| Track | Prize | Focus |
-|---|---|---|
-| **Track 1: Multiverse Agents** | $2,000 | Multi-agent pipeline + multimodal scene understanding |
-| **Track 2: People's Choice** | $2,000 | Shareable demo video showing Cerebras speed |
-| **Track 3: Enterprise Impact** | $1,000 | Physical AI / robotics use case |
-
----
-
-## ⚡ The Speed Story
-
-**Cerebras Inference makes reactive robotics possible.**
-
-On GPU: one reasoning step takes 1–5 seconds. Too slow for a robot to react to a changing world.
-
-On Cerebras: one reasoning step takes **50–150ms**. The robot can perceive, decide, and act at **3–5 Hz**.
-
-That's the difference between a robot that sees a cup get knocked over and **instantly reacquires it** — vs. a robot still planning its first move while the cup is already somewhere else.
-
----
-
-## 🎮 Live Demo
-
-### Web UI Dashboard
+Three live demos of **Gemma 4 31B** on **Cerebras Inference** driving simulated
+and real-camera robots through a closed-loop control stack.
 
 ```
-./run_web.sh
-# Open http://localhost:8000
+Camera image  ─▶  Gemma 4 (one call, ~500ms)  ─▶  structured intent  ─▶  controller  ─▶  robot
+                       ▲
+                       └─── EE proprioception + recent step history (as text)
 ```
 
-The web UI shows **two robot simulations running side-by-side in real time**:
+## What ships
 
-- **⚡ Cerebras** — Gemma 4 31B running at full Cerebras speed
-- **🐢 GPU Baseline** — same model, same task, with simulated GPU latency (~1.7s/tick)
+| Demo | Port | What it shows |
+|------|------|---------------|
+| **Panda pick-and-place** (`robosuite_server`) | `:8002/robot_live` | Gemma drives a robosuite Franka Panda. Composite image (birdview + frontview) → target XYZ + gripper command → OSC controller drives the arm for 25 steps, then re-evaluates. |
+| **PushT hybrid** (`pusht_server`) | `:8001/` | Gymnasium PushT task. Phase 1 = grid search to find the T-block (no LLM). Phase 2 = Gemma-guided pushes with reward-delta feedback. |
+| **LeRobot real-camera viewer** (`server`) | `:8000/real_vision` | Real ALOHA cabinet-opening frames from `lerobot/aloha_mobile_cabinet`, with the Zone A-F overlay grid that Gemma sees. |
 
-Watch the speed race live. Press **"⚠️ Perturb Cup"** to drag the cracked cup to a new position — see Cerebras reacquire it in milliseconds while the GPU is still planning.
+The landing page at `:8000/` is a hub linking to all three.
 
-### Real-time Metrics (from actual benchmark)
-
-| Metric | Cerebras ⚡ | GPU 🐢 | Advantage |
-|---|---|---|---|
-| Reasoning latency | **~300ms** | ~2,000ms | **6.6× faster** |
-| Decision frequency | **3.2 Hz** | 0.5 Hz | **6.4× more responsive** |
-| Multi-agent pipeline | **868ms total** | 5–10s | **6–12× faster** |
-
----
-
-## 🧠 Architecture
+## Architecture (Panda demo)
 
 ```
-                          ┌─────────────────────────────┐
-                          │     Web UI (FastAPI)         │
-                          │  Side-by-side sim viewer     │
-                          │  SSE streaming · Race timer  │
-                          └──────────┬──────────────────┘
-                                     │ SSE events (frames, decisions)
-                   ┌─────────────────┼─────────────────┐
-                   ▼ Cerebras        │                 ▼ GPU (throttled)
-          ┌──────────────────┐       │        ┌──────────────────┐
-          │  Reactive Loop   │       │        │  Reactive Loop   │
-          │  3–5 Hz          │       │        │  0.5 Hz          │
-          └──────┬───────────┘       │        └──────┬───────────┘
-                 ▼                   │               ▼
-        ┌────────────────┐          │       ┌────────────────┐
-        │  RobotBrain    │          │       │  RobotBrain    │
-        │  (Gemma 4 31B) │          │       │  (Gemma 4 31B) │
-        └───────┬────────┘          │       └───────┬────────┘
-                ▼                   │               ▼
-       ┌────────────────┐          │       ┌────────────────┐
-       │  Skill Layer   │          │       │  Skill Layer   │
-       │  pick · place   │          │       │  pick · place   │
-       │  move_to · stop │          │       │  move_to · stop │
-       └───────┬────────┘          │       └───────┬────────┘
-               ▼                   │               ▼
-       ┌────────────────┐          │       ┌────────────────┐
-       │  2D Tabletop   │          │       │  2D Tabletop   │
-       │  World (Zone   │          │       │  World (Zone   │
-       │  Grid A–F)     │          │       │  Grid A–F)     │
-       └────────────────┘          │       └────────────────┘
+src/web/robosuite_server.py        FastAPI routes (slim — ~170 lines)
+src/web/lib/
+  imaging.py                       orientation, JPEG b64, grid overlay, composite stitch
+  sim.py                           PandaSim — robosuite env lifecycle + Snapshot dataclass
+  brain.py                         GemmaBrain — prompt construction + structured-output call
+  executor.py                      MotionExecutor — motion + gripper position state-machine
 ```
 
-### Multi-Agent Pipeline
+The executor owns a **`desired_closed: bool | None`** that only flips on
+explicit `open` / `close` commands from Gemma. Every physics step asserts the
+position command for the current desired state. `hold` literally means
+"don't change desired_closed" — never a zero velocity, which the OSC controller
+otherwise interprets as "let the gripper drift". After a state change the
+executor runs extra ticks until `robot0_gripper_qpos` settles, so a grasp is
+confirmed before the next Gemma call.
 
-```
-[Camera Image] ──▶ [Vision Agent] ──▶ [Action Agent] ──▶ [Safety Agent] ──▶ [Robot Execute]
-                    Gemma 4             Gemma 4             Gemma 4            Simulated
-                   Multimodal            Text                Text              Hardware
-
-    291ms            372ms               204ms                0ms
-    ─────────────────────────────────────────────────────────────────
-                           TOTAL: 868ms
-```
-
-### Reactive Simulation Loop
-
-```
-Perceive ──▶ Decide ──▶ Act ──▶ (repeat every ~300ms)
-    │           │          │
-    ▼           ▼          ▼
- Render    Gemma 4     Skill Layer
- World     31B on     (pick, place,
- (640×420  Cerebras   move_to, stop)
- zone grid) Structured
-            Outputs
-```
-
-### Sensory Separation (Semantic → Geometric Bridge)
-
-**The model NEVER sees coordinates.** It perceives the world purely through the camera image (rendered with labeled zone grid). When it says "pick up the red cup in Zone B," the skill layer resolves that object ID to ground-truth coordinates. This mirrors how a real robot works — vision is approximate, actuation is precise.
-
----
-
-## 🔧 Setup
+## Setup
 
 ```bash
-# Clone and install
 git clone <repo-url>
 cd cerebras-gemma4-hackathon
 uv venv && source .venv/bin/activate
-uv pip install -r requirements.txt
+uv pip install -e .
+cp .env.example .env  # paste your CEREBRAS_API_KEY
+```
 
-# Set API key
-cp .env.example .env
-# Edit .env with your CEREBRAS_API_KEY
+## Running
 
-# Run the web UI
+Each demo is a standalone uvicorn app. Run them in separate terminals:
+
+```bash
+# Panda pick-and-place — http://localhost:8002/robot_live
+uv run python -m src.web.robosuite_server
+
+# PushT hybrid controller — http://localhost:8001/
+uv run python -m src.web.pusht_server
+
+# Landing page + real-camera viewer — http://localhost:8000/
 ./run_web.sh
-
-# Or run the CLI demo
-./run_demo.sh --image examples/images/workspace.jpg
-
-# Run reactive simulation (CLI)
-uv run python -m src.sim.run_sim --mock     # offline test
-uv run python -m src.sim.run_sim            # live Cerebras
-
-# Run speed comparison benchmark
-uv run python -m src.sim.compare --throttle   # simulated GPU
-uv run python -m src.sim.compare              # real GPU provider
 ```
 
----
-
-## 🚀 Deploy to Render
+Or use the bundled launcher to run all three:
 
 ```bash
-# 1. Push to GitHub
-# 2. Create a Render Blueprint:
-#    - Connect repo → Render detects render.yaml
-#    - Set CEREBRAS_API_KEY as an environment secret
-# 3. Deploy
+./run.sh           # tails all three logs into runs/*.log
 ```
 
-Or manually:
-```bash
-# 1. Build Docker image
-docker build -t gemmabot .
-docker run -p 8000:8000 -e CEREBRAS_API_KEY=your_key gemmabot
-# 2. Deploy to your preferred cloud
-```
+## Performance
 
----
+| Stage | Latency | Notes |
+|-------|---------|-------|
+| Gemma call (composite image, JSON schema) | ~450-600 ms | Single image_url, p50 measured from US west |
+| OSC motion segment | ~1.25 s | 25 physics steps + gripper confirm |
+| Frames per Gemma call | 4-6 | Returned to UI as base64 JPEGs |
 
-## 📁 Project Structure
+## Repo layout
 
 ```
 src/
-├── client.py              # Cerebras API wrapper with timing
-├── orchestrator.py        # Vision → Action → Safety → Execute pipeline
-├── demo.py                # CLI demo entry point
-├── config.py              # Environment configuration
-├── agents/
-│   ├── vision_agent.py    # Gemma 4 multimodal scene analysis
-│   ├── action_agent.py    # Robot command sequence generation
-│   └── safety_agent.py    # Hazard and constraint checking
-├── sim/
-│   ├── world.py           # 2D tabletop simulation (zone grid, physics)
-│   ├── brain.py           # Gemma 4 decision maker (structured outputs)
-│   ├── skills.py          # Low-level controllers (pick, place, move_to)
-│   ├── loop.py            # Perceive → Decide → Act reactive loop
-│   ├── run_sim.py         # Runnable demo, build_world(), INSTRUCTION
-│   └── compare.py         # Cerebras vs GPU speed benchmark
-├── web/
-│   ├── server.py          # FastAPI SSE server
-│   └── static/
-│       └── index.html     # Live web dashboard
-└── command_center/        # Dynamic multi-agent router (experimental)
-    ├── root.py            # Always-on Gemma 4 watcher/router
-    ├── branches.py        # Specialist branch registry
-    └── types.py           # Type definitions
+  client.py          CerebrasClient (thin Cerebras SDK wrapper with timing)
+  config.py          env loader (CEREBRAS_API_KEY etc.)
+  __init__.py        encode_image helper
+  web/
+    server.py        :8000 landing + real-image viewer
+    pusht_server.py  :8001 PushT hybrid controller
+    robosuite_server.py  :8002 Panda demo (slim FastAPI routes)
+    lib/             building blocks for the Panda demo
+    static/          HTML pages
+robot_video/
+  frame_loader.py    LeRobot dataset → PIL frames
+  pusht_controller.py HybridPushtController (search + Gemma + feedback)
+scripts/             experiment harnesses, visualizer, benchmark runners
 ```
 
----
-
-## 📊 Benchmark Results
-
-Run `uv run python -m src.sim.compare` to reproduce:
-
-```
-Task: Put the cracked cup into bin_left. Do not touch the blue cup.
-Window: 12s | cup dragged at t=4s
-
-Cerebras (Gemma 4 31B)        |  38 decisions | 3.2 Hz | avg  312ms | re-acquired cup in 0.42s
-GPU (throttled ~1.7s)         |   7 decisions | 0.6 Hz | avg 2025ms | re-acquired cup in 3.85s
-
-Headline: Cerebras made 31 more decisions in the same window (38 vs 7).
-```
-
----
-
-## 🎥 Demo Video
-
-See [demo-video-script.md](./demo-video-script.md) for the 60-second script.
-
-Key shots for the video:
-1. **Split screen** — Web UI with both sims running, Cerebras ticks visibly faster
-2. **Perturbation test** — Click "Perturb Cup", watch Cerebras reacquire instantly
-3. **Pipeline timing** — Show Vision 291ms / Action 372ms / Safety 204ms
-4. **End card** — 6.6× faster, enter both tracks
-
----
-
-## 📜 License
+## License
 
 MIT

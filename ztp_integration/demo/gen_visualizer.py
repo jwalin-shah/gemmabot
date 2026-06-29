@@ -118,16 +118,18 @@ def build_frames() -> list[str]:
 
 def write_html(frames: list[str]) -> None:
     real_data = [
-        (1, "pick cracked_cup", 275, "✅ SAFE", "(321, 50)", "150px"),
-        (2, "pick cracked_cup", 293, "✅ SAFE", "(323, 70)", "130px"),
-        (3, "pick cracked_cup", 279, "✅ SAFE", "(324, 90)", "110px"),
-        (4, "pick cracked_cup", 296, "✅ SAFE", "(325, 110)", "90px"),
-        (5, "pick cracked_cup", 273, "✅ SAFE", "(327, 130)", "70px"),
-        (6, "pick cracked_cup", 279, "✅ SAFE", "(328, 150)", "50px"),
-        (7, "pick cracked_cup", 331, "✅ SAFE", "(408, 142)⚡", "113px→NEW TARGET"),
-        (8, "pick cracked_cup", 367, "✅ SAFE", "(407, 142)", "113px"),
-        (9, "pick cracked_cup", 285, "✅ SAFE", "(408, 132)", "112px"),
-        (10, "pick cracked_cup", 373, "✅ SAFE", "(408, 142)", "112px"),
+        (1, "pick the cracked cup", 400, "✅ VLA", "cracked_cup: B", "(321, 50)", "150px→Zone B"),
+        (2, "pick the cracked cup", 475, "✅ VLA", "cracked_cup: B", "(323, 70)", "130px"),
+        (3, "pick the cracked cup", 367, "✅ VLA", "cracked_cup: B", "(324, 90)", "110px"),
+        (4, "pick the cracked cup", 325, "✅ VLA", "cracked_cup: B", "(325, 110)", "90px"),
+        (5, "pick the cracked cup", 339, "✅ VLA", "cracked_cup: B", "(327, 130)", "70px"),
+        (6, "pick the cracked cup", 368, "✅ VLA", "cracked_cup: B", "(328, 150)", "50px"),
+        (7, "pick the cracked cup", 538, "✅ VLA", "cracked_cup: B", "(329, 169)", "30px"),
+        (8, "pick the cracked cup⚡", 501, "✅ VLA", "cracked_cup: C⚡", "(387, 149)", "133px→NEW ZONE C"),
+        (9, "pick the cracked cup", 384, "✅ VLA", "cracked_cup: C", "(407, 149)", "113px"),
+        (10, "pick the cracked cup", 335, "✅ VLA", "cracked_cup: C", "(427, 149)", "93px"),
+        (11, "pick the cracked cup", 323, "✅ VLA", "cracked_cup: C", "(447, 149)", "73px"),
+        (12, "pick the cracked cup", 337, "✅ VLA", "cracked_cup: C", "(466, 149)", "54px"),
     ]
     rows = "".join(
         f"<tr{' style=\"background:#1a1a0a;\"' if r[0] == 7 else ''}>"

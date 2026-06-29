@@ -3,202 +3,169 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GemmaBot &mdash; Multi-Agent Robotics Demo</title>
+<title>GemmaBot — Gemma 4 31B on Cerebras</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-:root{--bg-primary:#0a0e17;--bg-secondary:#0d1322;--bg-card:#131a2b;--bg-card-hover:#181f35;--border-color:#1e2a45;--border-subtle:#162040;--text-primary:#e8edf5;--text-secondary:#8892b0;--text-muted:#5a6485;--accent-cerebras:#00d4aa;--accent-cerebras-glow:rgba(0,212,170,0.25);--accent-cerebras-subtle:rgba(0,212,170,0.08);--accent-gpu:#ff6b6b;--accent-gpu-glow:rgba(255,107,107,0.25);--accent-gpu-subtle:rgba(255,107,107,0.08);--accent-gold:#ffd700;--accent-blue:#4a9eff;--font-body:"Inter",-apple-system,sans-serif;--font-mono:"JetBrains Mono",monospace;--radius-sm:6px;--radius-md:10px}
+:root{
+  --bg:#0a0e17; --bg-card:#131a2b; --bg-card-hover:#1a2238;
+  --border:#1e2a45; --border-subtle:#162040;
+  --text:#e8edf5; --text-2:#8892b0; --text-3:#5a6485;
+  --accent:#00d4aa; --accent-glow:rgba(0,212,170,0.25);
+  --blue:#4a9eff; --gold:#ffd700; --red:#ff6b6b;
+}
 *{box-sizing:border-box;margin:0;padding:0}
-html{font-family:var(--font-body);background:var(--bg-primary);color:var(--text-primary);font-size:14px;height:100%;-webkit-font-smoothing:antialiased}
-body{height:100%;overflow-y:auto;overflow-x:hidden;background:radial-gradient(ellipse at 20% 50%,rgba(0,212,170,0.04) 0%,transparent 60%),radial-gradient(ellipse at 80% 50%,rgba(255,107,107,0.04) 0%,transparent 60%),var(--bg-primary);position:relative}
-body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(30,42,69,0.3) 1px,transparent 1px),linear-gradient(90deg,rgba(30,42,69,0.3) 1px,transparent 1px);background-size:48px 48px}
-::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg-primary)}::-webkit-scrollbar-thumb{background:var(--border-color);border-radius:3px}
-.app{position:relative;z-index:1;max-width:1440px;margin:0 auto;padding:12px 20px 16px;height:100vh;display:flex;flex-direction:column;gap:10px}
-.header{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;flex-shrink:0}
-.header-left{display:flex;align-items:center;gap:14px}.header-icon{font-size:28px}
-.header-title h1{font-size:18px;font-weight:700;background:linear-gradient(135deg,var(--accent-cerebras),var(--accent-blue),var(--accent-gpu));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:-0.3px}
-.header-title .subtitle{font-size:11px;color:var(--text-muted);margin-top:-1px;letter-spacing:0.2px}
-.header-controls{display:flex;gap:8px;align-items:center}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:6px;font-family:var(--font-body);font-size:12px;font-weight:600;border:1px solid transparent;cursor:pointer;transition:all .15s ease;letter-spacing:0.3px;overflow:hidden}
-.btn-primary{background:linear-gradient(135deg,var(--accent-cerebras),#00b894);color:#000;border-color:var(--accent-cerebras);box-shadow:0 0 20px rgba(0,212,170,0.15)}
-.btn-primary:hover{box-shadow:0 0 30px rgba(0,212,170,0.3);transform:translateY(-1px)}
-.btn-primary:disabled{opacity:0.4;cursor:not-allowed}
-.btn-danger{background:linear-gradient(135deg,var(--accent-gpu),#e04848);color:#fff;border-color:var(--accent-gpu);box-shadow:0 0 20px rgba(255,107,107,0.15)}
-.btn-danger:hover{box-shadow:0 0 30px rgba(255,107,107,0.3);transform:translateY(-1px)}
-.btn-danger:disabled{opacity:0.4;cursor:not-allowed}
-.btn-ghost{background:transparent;color:var(--text-secondary);border-color:var(--border-color)}
-.btn-ghost:hover{background:var(--bg-card);color:var(--text-primary)}
-.dash-row{display:flex;gap:10px;flex-shrink:0}
-.dash-card{flex:1;background:var(--bg-card);border:1px solid var(--border-color);border-radius:10px;padding:12px 16px;position:relative;overflow:hidden;transition:all .3s ease}
-.dash-card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;transition:all .3s ease}
-.dash-card.cerebras::before{background:linear-gradient(90deg,var(--accent-cerebras),transparent)}
-.dash-card.gpu::before{background:linear-gradient(90deg,var(--accent-gpu),transparent)}
-.dash-card.cerebras.winner{border-color:var(--accent-cerebras);box-shadow:0 0 30px var(--accent-cerebras-glow)}
-.dash-card.gpu.winner{border-color:var(--accent-gpu);box-shadow:0 0 30px var(--accent-gpu-glow)}
-.dash-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-.dash-name{font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
-.pulse-dot{width:8px;height:8px;border-radius:50%;display:inline-block;animation:pulse 1.5s ease-in-out infinite}
-.cerebras .pulse-dot{background:var(--accent-cerebras);box-shadow:0 0 8px var(--accent-cerebras)}
-.gpu .pulse-dot{background:var(--accent-gpu);box-shadow:0 0 8px var(--accent-gpu)}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
-.dash-badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:0.5px}
-.dash-badge.running{background:rgba(0,212,170,0.1);color:var(--accent-cerebras);border:1px solid rgba(0,212,170,0.2)}
-.metrics{display:flex;gap:16px;align-items:flex-end}.mg{flex:1}
-.ml{font-size:9px;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);margin-bottom:2px;font-weight:500}
-.mv{font-family:var(--font-mono);font-size:24px;font-weight:700;line-height:1.1}
-.mv.sm{font-size:16px}.mv.xs{font-size:13px}
-.green{color:var(--accent-cerebras)}.red{color:var(--accent-gpu)}.gold{color:var(--accent-gold)}.white{color:var(--text-primary)}
-.gt{height:4px;background:var(--border-color);border-radius:2px;margin-top:4px;overflow:hidden}
-.gf{height:100%;border-radius:2px;transition:width .5s ease;background:linear-gradient(90deg,transparent,currentColor)}
-.cerebras .gf{color:var(--accent-cerebras)}.gpu .gf{color:var(--accent-gpu)}
-.sim-row{display:flex;gap:10px;flex:1;min-height:0}
-.sim-panel{flex:1;background:var(--bg-card);border:1px solid var(--border-color);border-radius:10px;display:flex;flex-direction:column;overflow:hidden;position:relative;transition:all .3s ease}
-.sim-panel.cerebras{border-color:rgba(0,212,170,0.3);box-shadow:0 0 20px rgba(0,212,170,0.06)}
-.sim-panel.gpu{border-color:rgba(255,107,107,0.3);box-shadow:0 0 20px rgba(255,107,107,0.06)}
-.sim-panel.cerebras.winner{border-color:var(--accent-cerebras);box-shadow:0 0 40px var(--accent-cerebras-glow);animation:cglow 2s ease-in-out infinite}
-.sim-panel.gpu.winner{border-color:var(--accent-gpu);box-shadow:0 0 40px var(--accent-gpu-glow);animation:gglow 2s ease-in-out infinite}
-@keyframes cglow{0%,100%{box-shadow:0 0 20px rgba(0,212,170,0.10)}50%{box-shadow:0 0 50px rgba(0,212,170,0.25)}}
-@keyframes gglow{0%,100%{box-shadow:0 0 20px rgba(255,107,107,0.10)}50%{box-shadow:0 0 50px rgba(255,107,107,0.25)}}
-.sim-header{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;border-bottom:1px solid var(--border-subtle);flex-shrink:0}
-.sim-header .label{font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px}
-.lb{font-family:var(--font-mono);font-size:10px;padding:2px 8px;border-radius:10px;font-weight:500}
-.cerebras .lb{background:var(--accent-cerebras-subtle);color:var(--accent-cerebras);border:1px solid rgba(0,212,170,0.2)}
-.gpu .lb{background:var(--accent-gpu-subtle);color:var(--accent-gpu);border:1px solid rgba(255,107,107,0.2)}
-.zb{font-size:9px;padding:2px 8px;border-radius:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;background:rgba(74,158,255,0.1);color:var(--accent-blue);border:1px solid rgba(74,158,255,0.2)}
-.fw{flex:1;display:flex;align-items:center;justify-content:center;background:#080c14;position:relative;min-height:0;overflow:hidden}
-.fw::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,0.4) 100%);pointer-events:none}
-.fw img{max-width:100%;max-height:100%;object-fit:contain}
-.db{padding:6px 12px;border-top:1px solid var(--border-subtle);flex-shrink:0;min-height:36px;display:flex;align-items:center;gap:6px}
-.sc{font-family:var(--font-mono);font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;flex-shrink:0}
-.cerebras .sc{background:var(--accent-cerebras-subtle);color:var(--accent-cerebras)}
-.gpu .sc{background:var(--accent-gpu-subtle);color:var(--accent-gpu)}
-.dt2{font-size:11px;color:var(--text-secondary);flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.rc{font-family:var(--font-mono);font-size:9px;padding:1px 6px;border-radius:4px;font-weight:600;flex-shrink:0;background:rgba(255,215,0,0.12);color:var(--accent-gold);border:1px solid rgba(255,215,0,0.2)}
-.pl{flex-shrink:0;background:var(--bg-card);border:1px solid var(--border-color);border-radius:10px;padding:10px 16px 12px}
-.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-.ph h3{font-size:13px;font-weight:600;color:var(--text-primary)}
-.pt{font-family:var(--font-mono);font-size:12px;color:var(--text-secondary)}
-.ps{display:flex;align-items:stretch;gap:0}
-.pc{flex:1;background:var(--bg-secondary);border:1px solid var(--border-subtle);border-radius:6px;padding:8px 10px;min-width:0;transition:all .3s ease}
-.pc.active{border-color:var(--accent-blue);box-shadow:0 0 12px rgba(74,158,255,0.08)}
-.pc.done{border-color:rgba(0,212,170,0.3);background:rgba(0,212,170,0.03)}
-.pc.error{border-color:rgba(255,107,107,0.3);background:rgba(255,107,107,0.03)}
-.pa{flex-shrink:0;width:24px;display:flex;align-items:center;justify-content:center;color:var(--text-muted)}
-.pn{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);display:flex;align-items:center;gap:4px;margin-bottom:2px}
-.pn .pi{font-size:12px}.ps2{font-size:10px;margin-left:auto}
-.ps2.idle{color:var(--text-muted)}.ps2.running{color:var(--accent-blue)}.ps2.done{color:var(--accent-cerebras)}.ps2.error{color:var(--accent-gpu)}
-.pco{font-size:10px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pla{font-family:var(--font-mono);font-size:9px;color:var(--text-muted);margin-top:1px}
-.sb{display:flex;align-items:center;gap:12px;padding:2px 0;flex-shrink:0;font-size:10px;color:var(--text-muted)}
-.sd{width:6px;height:6px;border-radius:50%;flex-shrink:0}
-.sd.ok{background:var(--accent-cerebras);box-shadow:0 0 6px var(--accent-cerebras)}
-.sd.err{background:var(--accent-gpu);box-shadow:0 0 6px var(--accent-gpu)}
-.sd.pending{background:var(--accent-gold);box-shadow:0 0 6px var(--accent-gold);animation:pulse .6s ease-in-out infinite}
-.wt{color:var(--accent-gold);font-weight:600}
-.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--bg-card);border:1px solid var(--accent-gold);border-radius:10px;padding:10px 20px;box-shadow:0 8px 32px rgba(0,0,0,0.5);font-size:13px;font-weight:600;color:var(--accent-gold);z-index:100;transition:transform .4s cubic-bezier(0.34,1.56,0.64,1);display:flex;align-items:center;gap:8px;pointer-events:none}
-.toast.show{transform:translateX(-50%) translateY(0)}
-@media(max-width:1100px){.app{padding:8px 12px}.mv{font-size:20px}.mv.sm{font-size:14px}}
-@media(max-height:750px){.app{padding:6px 12px 8px;gap:6px}.header{padding:6px 12px}.header-title h1{font-size:15px}.mv{font-size:18px}.mv.sm{font-size:12px}.pc{padding:5px 8px}.pl{padding:6px 12px 8px}}
+html,body{height:100%}
+body{
+  font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text);
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(ellipse at 20% 20%,rgba(0,212,170,0.06) 0%,transparent 55%),
+    radial-gradient(ellipse at 80% 60%,rgba(74,158,255,0.05) 0%,transparent 55%);
+  min-height:100vh;
+}
+.wrap{max-width:1100px;margin:0 auto;padding:48px 24px 80px}
+.head{text-align:center;margin-bottom:48px}
+.eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2.5px;color:var(--accent);text-transform:uppercase;margin-bottom:14px}
+h1{font-size:42px;font-weight:800;letter-spacing:-0.6px;line-height:1.1;margin-bottom:14px;
+  background:linear-gradient(135deg,#fff 0%,#a0c8ff 60%,var(--accent) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.lead{font-size:17px;color:var(--text-2);max-width:680px;margin:0 auto}
+.lead strong{color:var(--text);font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;margin-top:32px}
+.card{
+  background:var(--bg-card);border:1px solid var(--border);border-radius:14px;
+  padding:24px;text-decoration:none;color:inherit;
+  display:flex;flex-direction:column;gap:14px;
+  transition:all .18s ease;position:relative;overflow:hidden;
+}
+.card::before{
+  content:"";position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--accent),transparent);
+  opacity:0.5;transition:opacity .2s ease;
+}
+.card:hover{transform:translateY(-2px);border-color:rgba(0,212,170,0.4);background:var(--bg-card-hover);box-shadow:0 12px 28px rgba(0,0,0,0.3),0 0 0 1px var(--accent-glow)}
+.card:hover::before{opacity:1}
+.card.disabled{opacity:0.55;pointer-events:none}
+.card-top{display:flex;align-items:center;justify-content:space-between}
+.card-icon{font-size:26px}
+.card-port{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.8px;color:var(--text-3);background:#0a0e17;padding:3px 8px;border-radius:4px;border:1px solid var(--border-subtle)}
+.card h2{font-size:18px;font-weight:700;letter-spacing:-0.2px}
+.card p{font-size:13px;color:var(--text-2);line-height:1.55}
+.card-foot{margin-top:auto;padding-top:8px;display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--accent);font-weight:600}
+.card-foot .arrow{transition:transform .18s ease}
+.card:hover .card-foot .arrow{transform:translateX(4px)}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-3);background:#0a0e17;padding:2px 8px;border-radius:4px;border:1px solid var(--border-subtle)}
+.tag.live{color:var(--accent);border-color:rgba(0,212,170,0.3)}
+.section{margin-top:56px}
+.section h3{font-size:11px;font-family:'JetBrains Mono',monospace;letter-spacing:2px;text-transform:uppercase;color:var(--text-3);margin-bottom:18px}
+.runlist{display:grid;grid-template-columns:1fr;gap:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:18px}
+.runrow{display:grid;grid-template-columns:180px 1fr;gap:18px;font-size:13px;align-items:baseline}
+.runrow code{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent);background:#0a0e17;padding:3px 8px;border-radius:4px;border:1px solid var(--border-subtle);white-space:nowrap}
+.runrow span{color:var(--text-2)}
+.footer{margin-top:64px;text-align:center;font-size:12px;color:var(--text-3)}
+.footer a{color:var(--text-2);text-decoration:none;border-bottom:1px dotted var(--text-3)}
+.footer a:hover{color:var(--accent)}
+@media(max-width:640px){
+  .wrap{padding:32px 16px 56px}
+  h1{font-size:32px}
+  .runrow{grid-template-columns:1fr;gap:4px}
+}
 </style>
 </head>
 <body>
-<div class="app">
-  <header class="header">
-    <div class="header-left">
-      <span class="header-icon">🤖</span>
-      <div class="header-title">
-        <h1>GemmaBot &mdash; Multi-Agent Robotics Demo</h1>
-        <div class="subtitle">Powered by Gemma 4 31B on Cerebras Inference</div>
-      </div>
-    </div>
-    <div class="header-controls">
-      <button class="btn btn-primary" id="btnStartRace" onclick="startRace()">🔄 Start Race</button>
-      <button class="btn btn-danger" id="btnPerturb" onclick="perturb()">⚠️ Perturb</button>
-      <button class="btn btn-ghost" id="btnStop" onclick="stopRace()">⏹ Stop</button>
-    </div>
+<div class="wrap">
+  <header class="head">
+    <div class="eyebrow">Gemma 4 31B · Cerebras Inference</div>
+    <h1>GemmaBot</h1>
+    <p class="lead">
+      Three live demos of <strong>Gemma 4 31B</strong> driving robots through a
+      <strong>Cerebras</strong>-hosted inference loop. Each one is a single composite
+      image → one Gemma call → a closed-loop control update.
+    </p>
   </header>
-  <div class="dash-row">
-    <div class="dash-card cerebras" id="dashCerebras">
-      <div class="dash-header">
-        <span class="dash-name"><span class="pulse-dot"></span>Cerebras (Gemma 4 31B)</span>
-        <span class="dash-badge running" id="badgeCerebras">RUNNING</span>
+
+  <div class="grid">
+    <a class="card" href="/robot_live">
+      <div class="card-top">
+        <span class="card-icon">🦾</span>
+        <span class="card-port">localhost:8002</span>
       </div>
-      <div class="metrics">
-        <div class="mg"><div class="ml">Decisions</div><div class="mv white" id="decisionsCerebras" data-value="0">0</div></div>
-        <div class="mg"><div class="ml">Hz</div><div class="mv sm green" id="hzCerebras" data-value="0">0.00</div><div class="gt"><div class="gf" id="gaugeCerebras" style="width:0%"></div></div></div>
-        <div class="mg"><div class="ml">Avg Latency</div><div class="mv xs gold" id="latencyCerebras">&mdash;</div></div>
-        <div class="mg"><div class="ml">Reacquire</div><div class="mv xs gold" id="reacquireCerebras">&mdash;</div></div>
+      <h2>Panda · pick-and-place</h2>
+      <p>Robosuite MuJoCo Panda arm. Gemma sees a stitched birdview+frontside image
+        with proprioception text, returns target XYZ + gripper command, and the
+        OSC controller drives the arm toward it over ~25 physics steps.</p>
+      <div class="tags">
+        <span class="tag live">live</span>
+        <span class="tag">robosuite</span>
+        <span class="tag">OSC control</span>
+        <span class="tag">~500ms/call</span>
       </div>
-    </div>
-    <div class="dash-card gpu" id="dashGpu">
-      <div class="dash-header">
-        <span class="dash-name"><span class="pulse-dot"></span>GPU Baseline</span>
-        <span class="dash-badge running" id="badgeGpu">RUNNING</span>
+      <div class="card-foot">Open dashboard <span class="arrow">→</span></div>
+    </a>
+
+    <a class="card" href="http://localhost:8001/">
+      <div class="card-top">
+        <span class="card-icon">🟦</span>
+        <span class="card-port">localhost:8001</span>
       </div>
-      <div class="metrics">
-        <div class="mg"><div class="ml">Decisions</div><div class="mv white" id="decisionsGpu" data-value="0">0</div></div>
-        <div class="mg"><div class="ml">Hz</div><div class="mv sm red" id="hzGpu" data-value="0">0.00</div><div class="gt"><div class="gf" id="gaugeGpu" style="width:0%"></div></div></div>
-        <div class="mg"><div class="ml">Avg Latency</div><div class="mv xs gold" id="latencyGpu">&mdash;</div></div>
-        <div class="mg"><div class="ml">Reacquire</div><div class="mv xs gold" id="reacquireGpu">&mdash;</div></div>
+      <h2>PushT · hybrid search + Gemma</h2>
+      <p>Gymnasium PushT block-pushing task. A grid-search phase finds the T-block
+        without LLM calls, then Gemma takes over with reward-delta feedback to push
+        it home. Watch the phase transitions live.</p>
+      <div class="tags">
+        <span class="tag live">live</span>
+        <span class="tag">gym-pusht</span>
+        <span class="tag">hybrid policy</span>
+        <span class="tag">reward feedback</span>
+      </div>
+      <div class="card-foot">Open PushT <span class="arrow">→</span></div>
+    </a>
+
+    <a class="card" href="/real_vision">
+      <div class="card-top">
+        <span class="card-icon">📷</span>
+        <span class="card-port">localhost:8000</span>
+      </div>
+      <h2>Real robot camera · LeRobot</h2>
+      <p>Real ALOHA cabinet-opening frames from the LeRobot dataset, with a Zone A-F
+        grid overlay. Use the episode/frame controls to step through real robot
+        camera footage and inspect the input Gemma actually sees.</p>
+      <div class="tags">
+        <span class="tag live">live</span>
+        <span class="tag">LeRobot</span>
+        <span class="tag">real frames</span>
+        <span class="tag">zone grid</span>
+      </div>
+      <div class="card-foot">Open viewer <span class="arrow">→</span></div>
+    </a>
+  </div>
+
+  <div class="section">
+    <h3>Run the demos</h3>
+    <div class="runlist">
+      <div class="runrow">
+        <code>uv run python -m src.web.robosuite_server</code>
+        <span>Panda pick-and-place dashboard — <a href="/robot_live" style="color:var(--accent)">/robot_live</a> on :8002</span>
+      </div>
+      <div class="runrow">
+        <code>uv run python -m src.web.pusht_server</code>
+        <span>PushT hybrid controller — <a href="http://localhost:8001/" style="color:var(--accent)">/</a> on :8001</span>
+      </div>
+      <div class="runrow">
+        <code>./run_web.sh</code>
+        <span>Landing page + LeRobot real-frame viewer on :8000 (this page)</span>
       </div>
     </div>
   </div>
-  <div class="sim-row">
-    <div class="sim-panel cerebras" id="panelCerebras">
-      <div class="sim-header">
-        <span class="label"><span class="pulse-dot" style="width:7px;height:7px"></span> Cerebras World</span>
-        <span style="display:flex;gap:6px;align-items:center">
-          <span class="zb" id="zoneCerebras">IDLE</span>
-          <span class="lb" id="latencyBadgeCerebras">&mdash;</span>
-        </span>
-      </div>
-      <div class="fw" id="frameWrapCerebras">
-        <img id="frameCerebras" style="display:none" alt="Cerebras sim frame">
-      </div>
-      <div class="db" id="decisionCerebras">
-        <span style="color:var(--text-muted);font-size:11px">Waiting for decisions...</span>
-      </div>
-    </div>
-    <div class="sim-panel gpu" id="panelGpu">
-      <div class="sim-header">
-        <span class="label"><span class="pulse-dot" style="width:7px;height:7px;background:var(--accent-gpu);box-shadow:0 0 6px var(--accent-gpu)"></span> GPU World</span>
-        <span style="display:flex;gap:6px;align-items:center">
-          <span class="zb" id="zoneGpu">IDLE</span>
-          <span class="lb" id="latencyBadgeGpu">&mdash;</span>
-        </span>
-      </div>
-      <div class="fw" id="frameWrapGpu">
-        <img id="frameGpu" style="display:none" alt="GPU sim frame">
-      </div>
-      <div class="db" id="decisionGpu">
-        <span style="color:var(--text-muted);font-size:11px">Waiting for decisions...</span>
-      </div>
-    </div>
-  </div>
-  <div class="pl">
-    <div class="ph">
-      <h3>🧠 Multi-Agent Pipeline</h3>
-      <div style="display:flex;gap:8px;align-items:center">
-        <span class="pt" id="pipelineTotal">Total: &mdash;</span>
-        <button class="btn btn-ghost" style="padding:4px 10px;font-size:10px" onclick="runPipeline()">▶ Run Pipeline</button>
-      </div>
-    </div>
-    <div class="ps">
-      <div class="pc" id="step-vision"><div class="pn"><span class="pi">👁</span> Vision <span class="ps2 idle" id="status-vision">⏳ idle</span></div><div class="pco" id="content-vision">No analysis yet</div><div class="pla" id="latency-vision">&mdash;</div></div>
-      <div class="pa">›</div>
-      <div class="pc" id="step-action"><div class="pn"><span class="pi">🎯</span> Action <span class="ps2 idle" id="status-action">⏳ idle</span></div><div class="pco" id="content-action">No plan yet</div><div class="pla" id="latency-action">&mdash;</div></div>
-      <div class="pa">›</div>
-      <div class="pc" id="step-safety"><div class="pn"><span class="pi">🛡</span> Safety <span class="ps2 idle" id="status-safety">⏳ idle</span></div><div class="pco" id="content-safety">No review yet</div><div class="pla" id="latency-safety">&mdash;</div></div>
-      <div class="pa">›</div>
-      <div class="pc" id="step-execute"><div class="pn"><span class="pi">⚡</span> Execute <span class="ps2 idle" id="status-execute">⏳ idle</span></div><div class="pco" id="content-execute">No actions yet</div><div class="pla" id="latency-execute">&mdash;</div></div>
-    </div>
-  </div>
-  <div class="sb">
-    <span class="sd err" id="statusDot"></span>
-    <span id="statusText">Disconnected</span>
-    <span id="winnerDisplay" style="display:none"></span>
-    <span style="margin-left:auto" id="tickCounter">Ticks: 0</span>
+
+  <div class="footer">
+    Powered by <a href="https://cerebras.ai" target="_blank" rel="noopener">Cerebras Inference</a>
+    · model <code style="font-family:'JetBrains Mono',monospace;color:var(--accent);background:none;padding:0">gemma-4-31b</code>
+    · source on <a href="https://github.com/" target="_blank" rel="noopener">GitHub</a>
   </div>
 </div>
-<div class="toast" id="toast">⚠️ Perturbation triggered!</div>
+</body>
+</html>

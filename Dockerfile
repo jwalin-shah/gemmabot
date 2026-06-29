@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy project files
 COPY pyproject.toml requirements.txt uv.lock ./
 COPY src/ ./src/
+COPY robot_video/ ./robot_video/
 COPY examples/ ./examples/
 COPY .env.example ./
 

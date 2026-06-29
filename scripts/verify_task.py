@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+"""Verify one task end-to-end with Gemma, record the run, report verdict."""
+import json, os, sys, time
+
+# Set up paths
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+
+from src.web.lib.sim import PandaSim
+from src.web.lib.brain import GemmaBrain, HistoryItem
+from src.web.lib.executor import MotionExecutor
+from src.web.lib.verify import verify, env_success
+from src.web.lib.recorder import RunRecorder
+from src.web.lib.tasks import get as get_task
+
+task_key = sys.argv[1] if len(sys.argv) > 1 else 'lift_cube'
+max_steps = int(sys.argv[2]) if len(sys.argv) > 2 else 10
+
+spec = get_task(task_key)
+print(f'Verifying task: {spec.label} (mode={spec.mode}, max_steps={max_steps})')
+
+sim = PandaSim(spec)
+brain = GemmaBrain()
+executor = MotionExecutor(sim)
+history: list[HistoryItem] = []
+
+snap = sim.reset()
+executor.seed_from(snap)
+recorder = RunRecorder(task=spec.key)
+
+for step_idx in range(1, max_steps + 1):
+    snap_before = sim.snapshot()
+    intent = brain.think(spec.description, snap_before, history, spec)
+
+    result = executor.execute(
+        snap_before,
+        intent_target={'target_x': intent.target_x, 'target_y': intent.target_y, 'target_z': intent.target_z},
+        gripper_action=intent.gripper_action,
+    )
+    final = result.final_snapshot
+    v = verify(snap_before, final, spec)
+    if env_success(final, spec):
+        v.success = True
+
+    history.append(HistoryItem(
+        step=step_idx, tx=intent.target_x, ty=intent.target_y, tz=intent.target_z,
+        grip=intent.gripper_action, stage=intent.stage, reasoning=intent.reasoning,
+        ee_x=float(final.ee_pos[0]), ee_y=float(final.ee_pos[1]), ee_z=float(final.ee_pos[2]),
+        verdict_note=v.notes,
+    ))
+
+    recorder.step(
+        intent={'target': [intent.target_x, intent.target_y, intent.target_z],
+                'gripper': intent.gripper_action, 'stage': intent.stage, 'reasoning': intent.reasoning},
+        ee=[round(float(final.ee_pos[i]), 3) for i in range(3)],
+        gripper_open=final.gripper_open,
+        objects={k: [round(float(v[i]), 3) for i in range(3)] for k, v in final.objects.items()},
+        verdict=v, latency_ms=intent.latency_ms,
+    )
+
+    print(f'  Step {step_idx}: {v.mode} stage={intent.stage} '
+          f'reached={v.reached} grasped={v.grasped} lifted={v.lifted} placed={v.placed} '
+          f'success={v.success} | {v.notes}')
+    sys.stdout.flush()
+
+    if v.success or intent.stage == 'done':
+        recorder.finalize(success=v.success)
+        print(f'DONE: task={spec.key} success={v.success} in {step_idx} steps')
+        print(json.dumps({'task': spec.key, 'success': v.success, 'steps': step_idx, 'verdict': v.to_json()}))
+        sys.exit(0 if v.success else 1)
+
+recorder.finalize(success=False)
+print(f'EXHAUSTED: task={spec.key} after {max_steps} steps without completion')
+print(json.dumps({'task': spec.key, 'success': False, 'steps': max_steps, 'reason': 'max_steps_exhausted'}))
+sys.exit(1)
