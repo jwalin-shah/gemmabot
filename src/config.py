@@ -97,5 +97,15 @@ SERVER_PORT: int = int(os.environ.get("SERVER_PORT", "8002"))
 ENABLE_VISION_MODE: bool = os.environ.get("ENABLE_VISION_MODE", "False").lower() in ("1", "true", "yes")
 """When True, include images in LLM calls (slower but enables vision)."""
 
+# --- Nvidia NIM ---
+NVIDIA_NIM_API_KEY: str = os.environ.get("NVIDIA_NIM_API_KEY", "")
+"""Nvidia NIM API key. Get yours from Nvidia API catalog."""
+
+NVIDIA_NIM_BASE_URL: str = os.environ.get("NVIDIA_NIM_BASE_URL", "https://integrate.api.nvidia.com/v1")
+"""Nvidia NIM API base URL."""
+
+NVIDIA_NIM_MODEL: str = os.environ.get("NVIDIA_NIM_MODEL", "meta/llama3-70b-instruct")
+"""Default model for Nvidia NIM calls."""
+
 
 __all__: list[str] = []
