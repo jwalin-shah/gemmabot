@@ -36,6 +36,7 @@ from starlette.staticfiles import StaticFiles  # noqa: E402
 
 from src.web.lib.brain import GemmaBrain, HistoryItem  # noqa: E402
 from src.web.lib.executor import MotionExecutor  # noqa: E402
+from src.web.lib.grounding import VisionGroundingModule  # noqa: E402
 from src.web.lib.imaging import img_to_b64, overlay_grid  # noqa: E402
 from src.web.lib.recorder import RunRecorder, list_runs, load_run  # noqa: E402
 from src.web.lib import tasks as tasks_mod  # noqa: E402
@@ -61,6 +62,9 @@ _step_count = 0
 # A recorder is created on every /api/reset so each task attempt lands in its
 # own runs/<task>_<ts>/ folder. The server holds one at a time.
 _recorder: RunRecorder | None = None
+# Vision grounding module -- lazily initialised when first vision-mode step is
+# requested, so it does not slow down the initial page load.
+_vision_grounding: VisionGroundingModule | None = None
 
 
 def _snapshot_payload(snap: Snapshot) -> dict:
@@ -132,30 +136,73 @@ async def api_reset(task: str | None = None) -> dict:
 
 
 @app.get("/api/step")
-async def api_step(task: str | None = None) -> dict:
+async def api_step(task: str | None = None, vision: bool = False) -> dict:
     """One Gemma call + one tool execution. Returns frames + intent + verdict.
 
-    NOTE: this path still feeds Gemma ground-truth object coordinates via the
-    prompt — it is the runnable *coordinate-fed baseline*, not the vision-
-    grounded loop. Treat its results accordingly.
+    When ``vision=true`` the entire pipeline runs through the vision-grounding
+    (blinding) layer: Gemma receives camera-derived object positions instead of
+    simulator ground truth, and tool execution resolves targets against the
+    vision belief instead of the physics state. The verifier still reads ground
+    truth behind the scenes so the judge is never fooled.
+
+    Without vision (default): feeds ground-truth coordinates to Gemma
+    (coordinate-fed baseline for comparison).
     """
-    global _step_count
+    global _step_count, _vision_grounding
     import json as _json
 
     # 1) Snapshot — what Gemma sees (ground truth here is used only to judge).
     snap_before = _sim.snapshot()
     prompt_task = task or _sim.task.description
-    intent = _brain.think(prompt_task, snap_before, _history, _sim.task)
+
+    # Vision-mode setup: run the pixel-only pipeline and blind Gemma.
+    vision_belief = None
+    vision_errors = None
+    vision_detections = None
+    vision_text_override = None
+
+    if vision:
+        # Lazy init the vision grounding module.
+        if _vision_grounding is None:
+            _vision_grounding = VisionGroundingModule(
+                _sim.env().sim,
+                _sim.env().model,
+                _sim.task,
+            )
+        obs = _sim.env()._get_observations(force_update=True)
+        vision_belief = _vision_grounding.perceive(obs, gt_snapshot=snap_before)
+        vision_text_override = vision_belief.as_prompt_block()
+        vision_errors = vision_belief.errors
+        vision_detections = [
+            {
+                "label": d.label,
+                "world_xyz": list(d.world_xyz) if d.world_xyz else None,
+                "area_px": d.area_px,
+                "confidence": d.confidence,
+                "source": d.source,
+            }
+            for d in vision_belief.detections
+        ]
+
+    intent = _brain.think(
+        prompt_task, snap_before, _history, _sim.task,
+        vision_text_override=vision_text_override,
+    )
     _step_count += 1
 
-    # 2) Execute the tool Gemma chose. "done" runs no motion; a bad tool call
-    #    is caught so it can never crash the live loop.
+    # 2) Execute the tool Gemma chose. In vision mode, targets are resolved
+    #    from the vision belief rather than simulator ground truth.
     if intent.tool == "done":
         frames: list = []
         final = snap_before
     else:
         try:
-            result = _executor.execute_tool(snap_before, intent.tool, intent.params)
+            if vision and vision_belief is not None:
+                result = _executor.execute_tool_vision(
+                    snap_before, intent.tool, intent.params, vision_belief,
+                )
+            else:
+                result = _executor.execute_tool(snap_before, intent.tool, intent.params)
             frames = result.frames
             final = result.final_snapshot
         except Exception as exc:  # noqa: BLE001 — surface, don't crash the demo
@@ -218,7 +265,23 @@ async def api_step(task: str | None = None) -> dict:
         "task": _task_payload(_sim.task),
         "run_id": _recorder.run_id if _recorder else None,
         "done": verdict.success or intent.tool == "done",
+        # Vision (blinding) mode fields
+        "vision_mode": vision,
+        "vision_errors": vision_errors,
+        "vision_detections": vision_detections,
     }
+
+
+# ── Vision-step endpoint (convenience wrapper around api_step) ──
+
+@app.get("/api/vision-step")
+async def api_vision_step(task: str | None = None) -> dict:
+    """Full blind pipeline: Gemma sees only camera-derived positions.
+
+    Equivalent to /api/step?vision=true -- provided as a separate endpoint
+    so the frontend does not need to manage the query parameter.
+    """
+    return await api_step(task=task, vision=True)
 
 
 # ── Replay endpoints ──

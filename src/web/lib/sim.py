@@ -17,6 +17,7 @@ import numpy as np
 
 from src.web.lib.imaging import fix_img
 from src.web.lib.tasks import DEFAULT_TASK, TaskSpec, get as _get_task, object_positions
+from src.config import CAMERA_HEIGHT, CAMERA_WIDTH
 
 
 _log = logging.getLogger(__name__)
@@ -61,8 +62,8 @@ class PandaSim:
                 has_offscreen_renderer=True,
                 use_camera_obs=True,
                 camera_names=["birdview", "frontview", "robot0_eye_in_hand"],
-                camera_heights=384,
-                camera_widths=384,
+                camera_heights=CAMERA_HEIGHT,
+                camera_widths=CAMERA_WIDTH,
             )
             self._env.reset()
         return self._env

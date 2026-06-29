@@ -25,8 +25,7 @@ from starlette.routing import Route
 
 import gym_pusht.envs
 import gymnasium as gym
-from src.client import CerebrasClient
-from src.config import CEREBRAS_API_KEY
+from src.provider import ProviderRegistry
 import json
 
 from robot_video.pusht_controller import HybridPushtController, Phase
@@ -75,8 +74,8 @@ GEMMA_SCHEMA = {
 GEMMA_CLIENT = None
 def get_gemma():
     global GEMMA_CLIENT
-    if GEMMA_CLIENT is None and CEREBRAS_API_KEY:
-        GEMMA_CLIENT = CerebrasClient()
+    if GEMMA_CLIENT is None:
+        GEMMA_CLIENT = ProviderRegistry.default()
     return GEMMA_CLIENT
 
 PUSHER_POS = [256.0, 256.0]

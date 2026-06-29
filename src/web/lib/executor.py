@@ -15,20 +15,19 @@ from typing import Any, Callable
 
 import numpy as np
 
+from src.web.lib.grounding import GroundedBelief, resolve_vision_target
 from src.web.lib.imaging import img_to_b64
 from src.web.lib.sim import PandaSim, Snapshot
-
-
-# Motion tuning.
-MAX_MOTION_STEPS = 25
-GRIPPER_CONFIRM_STEPS = 5
-GRIPPER_CONFIRM_TOL = 0.002
-REACH_TOLERANCE = 0.010
-ACTION_GAIN = 1.0
-FRAME_EVERY = 5
-
-GRIPPER_CLOSE_CMD = 1.0
-GRIPPER_OPEN_CMD = -1.0
+from src.config import (
+    MOTION_MAX_STEPS as MAX_MOTION_STEPS,
+    MOTION_REACH_TOLERANCE as REACH_TOLERANCE,
+    MOTION_ACTION_GAIN as ACTION_GAIN,
+    MOTION_FRAME_EVERY as FRAME_EVERY,
+    MOTION_GRIPPER_CONFIRM_STEPS as GRIPPER_CONFIRM_STEPS,
+    GRIPPER_CONFIRM_TOL,
+    GRIPPER_CLOSE_CMD,
+    GRIPPER_OPEN_CMD,
+)
 
 
 @dataclass
@@ -147,6 +146,70 @@ class PlaceHandler:
         return ExecuteResult(frames=frames, final_snapshot=r3.final_snapshot)
 
 
+class OrientedGraspHandler:
+    """Grasp a named object from a specified side direction.
+
+    Directions: above (top-down), left, right, front, back.
+    Used for flat or wide objects where a standard top-down grasp won't work.
+    """
+
+    _APPROACH_OFFSETS: dict[str, tuple[float, float]] = {
+        "above": (0.0, 0.0),
+        "left": (-0.08, 0.0),
+        "right": (0.08, 0.0),
+        "front": (0.0, -0.08),
+        "back": (0.0, 0.08),
+    }
+
+    def __init__(self, executor: "MotionExecutor") -> None:
+        self.executor = executor
+        self._obj_name: str = ""
+
+    def __call__(self, snap: Snapshot, object_name: str, direction: str = "above", **kwargs) -> ExecuteResult:
+        self._obj_name = object_name
+        try:
+            tx, ty, tz = resolve_target(object_name, snap)
+        except ValueError:
+            return ExecuteResult(frames=[], final_snapshot=snap)
+
+        ox, oy = self._APPROACH_OFFSETS.get(direction, (0.0, 0.0))
+
+        # Step 1: approach from the side at 10cm over the object
+        r1 = self.executor._execute_raw(
+            snap,
+            {"target_x": tx + ox, "target_y": ty + oy, "target_z": tz + 0.10},
+            "open",
+        )
+        snap = r1.final_snapshot
+
+        # Step 2: move laterally to object center at grasp height
+        r2 = self.executor._execute_raw(
+            snap,
+            {"target_x": tx, "target_y": ty, "target_z": tz + 0.02},
+            "open",
+        )
+        snap = r2.final_snapshot
+
+        # Step 3: descend slightly and close gripper
+        r3 = self.executor._execute_raw(
+            snap,
+            {"target_x": tx, "target_y": ty, "target_z": tz - 0.01},
+            "close",
+        )
+        snap = r3.final_snapshot
+
+        # Step 4: hold closed to settle fingers
+        r4 = self.executor._execute_raw(
+            snap,
+            {"target_x": tx, "target_y": ty, "target_z": tz - 0.01},
+            "close",
+        )
+        snap = r4.final_snapshot
+
+        frames = r1.frames + r2.frames + r3.frames + r4.frames
+        return ExecuteResult(frames=frames, final_snapshot=snap)
+
+
 # ═══════════════════════════════════════════════════════════════
 # Tool Dispatcher
 # ═══════════════════════════════════════════════════════════════
@@ -262,6 +325,37 @@ class MotionExecutor:
             raise ValueError(f"Unknown tool: {tool_name}, known: {list(tools)}")
         td = tools[tool_name]
         return td.handler(snap, **params)
+
+    def execute_tool_vision(self, snap: Snapshot, tool_name: str, params: dict, belief: GroundedBelief) -> ExecuteResult:
+        """Execute a named tool using vision-derived positions instead of ground truth.
+
+        Creates a snapshot copy with object positions from the vision belief,
+        then dispatches through the normal execute_tool path. This keeps the
+        tool handlers unchanged - they see vision-derived coordinates via
+        resolve_target() on the modified snapshot's objects dict.
+
+        Args:
+            snap: Current ground-truth snapshot (used for EE pose, cameras).
+            tool_name: Tool name (move_to, grasp, grasp_side, lift, place).
+            params: Tool parameters dictionary.
+            belief: GroundedBelief with vision-derived object positions.
+
+        Returns:
+            ExecuteResult with frames and final vision-stepped snapshot.
+            On ValueError (target not found in vision), returns empty frames
+            and the original snapshot.
+        """
+        # Build a snapshot with vision-derived object positions
+        from dataclasses import replace
+
+        vision_objects = belief.as_object_dict()
+        vision_snap = replace(snap, objects=vision_objects)
+
+        try:
+            return self.execute_tool(vision_snap, tool_name, params)
+        except ValueError:
+            # Target not found in vision belief -- return gracefully
+            return ExecuteResult(frames=[], final_snapshot=snap)
 
     # ── Legacy execute (for backward compat with non-tool mode) ──
 

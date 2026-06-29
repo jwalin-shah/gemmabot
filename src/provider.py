@@ -486,10 +486,9 @@ class ProviderRegistry:
 
     @classmethod
     def _build_defaults(cls) -> dict[str, LLMProvider]:
-        """Build the default set of providers."""
-        from src.client import CerebrasClient
+        """Build the default set of providers (lazy CerebrasClient creation)."""
         return {
-            "cerebras": CerebrasProvider(CerebrasClient()),
+            "cerebras": CerebrasProvider(),
             "openrouter": OpenRouterProvider(),
         }
 

@@ -13,40 +13,10 @@ from typing import Iterable
 
 from src.provider import LLMProvider
 from src.web.lib.imaging import img_to_b64, make_composite, overlay_grid
+from src.web.lib.schema import build_intent_schema
 from src.web.lib.sim import Snapshot
 from src.web.lib.tasks import TaskSpec
 
-
-INTENT_SCHEMA = {
-    "name": "tool_call",
-    "strict": True,
-    "schema": {
-        "type": "object",
-        "additionalProperties": False,
-        "properties": {
-            "tool": {
-                "type": "string",
-                "enum": ["move_to", "grasp", "grasp_side", "lift", "place", "done"],
-                "description": "Which tool to use. done = task complete.",
-            },
-            "params": {
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {
-                    "target": {"type": "string", "description": "Object name to move toward (e.g. 'Can', 'Milk', 'cube'). Use INSTEAD of x/y/z for move_to."},
-                    "x": {"type": "number", "description": "X coordinate for move_to/place"},
-                    "y": {"type": "number", "description": "Y coordinate for move_to/place"},
-                    "z": {"type": "number", "description": "Z height for move_to"},
-                    "object_name": {"type": "string", "description": "Object name for grasp: Can, Milk, Bread, Cereal, cube, cubeA, SquareNut"},
-                    "height": {"type": "number", "description": "Lift height in meters (default 0.15)"},
-                    "direction": {"type": "string", "enum": ["above", "left", "right", "front", "back"], "description": "Approach direction for grasp_side"},
-                },
-            },
-            "reasoning": {"type": "string"},
-        },
-        "required": ["tool", "params", "reasoning"],
-    },
-}
 
 TABLE_Z = 0.85
 
@@ -213,8 +183,8 @@ def _objects_text(snap: Snapshot, spec: TaskSpec, prev_snap: Snapshot | None = N
     return "\n".join(lines) + "\n"
 
 
-def _prompt(task: str, snap: Snapshot, history: Iterable[HistoryItem], spec: TaskSpec | None = None, prev_snap: Snapshot | None = None) -> str:
-    obj_block = _objects_text(snap, spec, prev_snap) if spec is not None else ""
+def _prompt(task: str, snap: Snapshot, history: Iterable[HistoryItem], spec: TaskSpec | None = None, prev_snap: Snapshot | None = None, obj_block_override: str | None = None) -> str:
+    obj_block = obj_block_override if obj_block_override is not None else (_objects_text(snap, spec, prev_snap) if spec is not None else "")
     return (
         "You control a Franka Panda 7-DOF robot arm.\n\n"
         "IMAGE: Two rows. Top: [birdview | frontview] full res for positioning. "
@@ -250,9 +220,14 @@ class GemmaBrain:
             self._client = ProviderRegistry.default()
         return self._client
 
-    def think(self, task: str, snap: Snapshot, history: Iterable[HistoryItem], spec: TaskSpec | None = None, prev_snap: Snapshot | None = None, send_image: bool = True) -> Intent:
+    def think(self, task: str, snap: Snapshot, history: Iterable[HistoryItem], spec: TaskSpec | None = None, prev_snap: Snapshot | None = None, send_image: bool = True, vision_text_override: str | None = None) -> Intent:
         t0 = time.perf_counter()
-        
+
+        # When vision_text_override is set, use it INSTEAD of _objects_text().
+        # This is the blinding layer: Gemma sees camera-derived positions, not
+        # ground-truth simulator object positions.
+        obj_block = vision_text_override if vision_text_override is not None else (_objects_text(snap, spec, prev_snap) if spec is not None else "")
+
         if send_image:
             composite_b64 = img_to_b64(
                 make_composite(
@@ -262,21 +237,21 @@ class GemmaBrain:
                 )
             )
             result = self._ensure_provider().image_chat(
-                prompt=_prompt(task, snap, history, spec, prev_snap),
+                prompt=_prompt(task, snap, history, spec, prev_snap, obj_block_override=vision_text_override),
                 image_b64=composite_b64,
                 temperature=0.0,
                 seed=42,
                 max_tokens=300,
-                response_format={"type": "json_schema", "json_schema": INTENT_SCHEMA},
+                response_format={"type": "json_schema", "json_schema": build_intent_schema()},
             )
         else:
             # Text-only call — no image, saves ~300ms
             result = self._ensure_provider().chat(
-                messages=[{"role": "user", "content": _prompt(task, snap, history, spec, prev_snap)}],
+                messages=[{"role": "user", "content": _prompt(task, snap, history, spec, prev_snap, obj_block_override=vision_text_override)}],
                 temperature=0.0,
                 seed=42,
                 max_tokens=300,
-                response_format={"type": "json_schema", "json_schema": INTENT_SCHEMA},
+                response_format={"type": "json_schema", "json_schema": build_intent_schema()},
             )
         latency_ms = round((time.perf_counter() - t0) * 1000)
 

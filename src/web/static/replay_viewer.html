@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZTP Replay — GemmaBot Dataset Benchmark</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0e17;
+  --bg-card: #131a2b;
+  --bg-card-hover: #1a2238;
+  --border: #1e2a45;
+  --border-subtle: #162040;
+  --text: #e8edf5;
+  --text-2: #8892b0;
+  --text-3: #5a6485;
+  --accent: #00d4aa;
+  --accent-glow: rgba(0,212,170,0.25);
+  --blue: #4a9eff;
+  --gold: #ffd700;
+  --red: #ff6b6b;
+  --green: #4caf50;
+  --orange: #ff9800;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: Inter, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+/* ── Layout ─────────────────────────────────────────── */
+.app { display: flex; flex-direction: column; height: 100vh; }
+
+/* Top bar */
+.topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.topbar .eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; letter-spacing: 1.5px;
+  color: var(--accent); text-transform: uppercase;
+  margin-right: 8px;
+}
+.topbar label { font-size: 11px; color: var(--text-2); }
+.topbar select, .topbar input, .topbar button {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 12px; background: #0a0e17; color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 10px; outline: none;
+}
+.topbar select:focus, .topbar input:focus, .topbar button:hover {
+  border-color: var(--accent);
+}
+.topbar button {
+  background: var(--accent); color: #0a0e17; font-weight: 600;
+  border: none; cursor: pointer; padding: 5px 14px;
+  transition: opacity .15s;
+}
+.topbar button:hover { opacity: 0.85; }
+.topbar button.secondary {
+  background: transparent; border: 1px solid var(--border); color: var(--text-2);
+}
+.topbar button.secondary:hover { border-color: var(--accent); color: var(--text); }
+.topbar .status {
+  font-size: 11px; color: var(--text-3);
+  margin-left: auto;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Main area: side-by-side */
+.main {
+  display: flex; flex: 1; min-height: 0;
+  gap: 0;
+}
+.left-panel {
+  flex: 1; display: flex; flex-direction: column;
+  border-right: 1px solid var(--border);
+  min-width: 0;
+}
+.right-panel {
+  width: 420px; min-width: 320px;
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+@media (max-width: 800px) {
+  .main { flex-direction: column; }
+  .right-panel { width: 100%; min-width: 0; max-height: 50vh; }
+  .left-panel { border-right: none; border-bottom: 1px solid var(--border); }
+}
+
+/* ── Image viewer ───────────────────────────────────── */
+.image-area {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  background: #050810; min-height: 200px; position: relative;
+  overflow: hidden;
+}
+.image-area img {
+  max-width: 100%; max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+.image-placeholder {
+  color: var(--text-3); font-size: 13px;
+  text-align: center; padding: 40px;
+}
+.image-info {
+  position: absolute; bottom: 8px; left: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--text-3);
+  background: rgba(10, 14, 23, 0.8);
+  padding: 3px 8px; border-radius: 4px;
+}
+
+/* ── Slider area ────────────────────────────────────── */
+.slider-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 16px;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.slider-bar input[type="range"] {
+  flex: 1; height: 4px;
+  -webkit-appearance: none; appearance: none;
+  background: var(--border); border-radius: 2px; outline: none;
+}
+.slider-bar input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--accent); cursor: pointer;
+  border: 2px solid var(--bg);
+}
+.slider-bar .frame-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; color: var(--text-2);
+  min-width: 80px; text-align: right;
+}
+.slider-bar .nav-btn {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-2); cursor: pointer;
+  width: 28px; height: 28px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; transition: all .12s;
+}
+.slider-bar .nav-btn:hover {
+  border-color: var(--accent); color: var(--text);
+}
+
+/* ── Right panel sections ──────────────────────────── */
+.panel-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.panel-section h3 {
+  font-size: 10px; font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--text-3); margin-bottom: 8px;
+}
+.panel-section h3 .badge {
+  display: inline-block; font-size: 9px; padding: 1px 6px;
+  border-radius: 4px; margin-left: 6px; font-weight: 500;
+}
+
+/* Ground truth vs prediction */
+.action-row {
+  display: grid; grid-template-columns: 80px 1fr;
+  gap: 4px 8px; font-size: 11px; margin-bottom: 4px;
+}
+.action-row .label { color: var(--text-3); }
+.action-row .value { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-2); word-break: break-all; }
+.action-row .value.gt { color: var(--blue); }
+.action-row .value.pred { color: var(--accent); }
+
+/* Score metrics */
+.metric-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.metric {
+  background: var(--bg); border: 1px solid var(--border-subtle);
+  border-radius: 6px; padding: 6px 10px;
+}
+.metric .metric-label {
+  font-size: 9px; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.metric .metric-value {
+  font-size: 14px; font-weight: 600; margin-top: 2px;
+}
+.metric .metric-value.good { color: var(--green); }
+.metric .metric-value.ok { color: var(--orange); }
+.metric .metric-value.bad { color: var(--red); }
+.metric .metric-value.neutral { color: var(--text); }
+
+/* Timeline dots */
+.timeline {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.timeline h3 {
+  font-size: 10px; font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--text-3); margin-bottom: 8px;
+}
+.dot-row {
+  display: flex; gap: 3px; flex-wrap: wrap;
+  max-height: 80px; overflow-y: auto;
+}
+.dot {
+  width: 12px; height: 12px; border-radius: 3px;
+  border: 1px solid var(--border); cursor: pointer;
+  transition: all .12s; flex-shrink: 0;
+}
+.dot:hover { transform: scale(1.3); border-color: var(--text); }
+.dot.good { background: var(--green); border-color: var(--green); }
+.dot.ok { background: var(--orange); border-color: var(--orange); }
+.dot.bad { background: var(--red); border-color: var(--red); }
+.dot.pending { background: #1a2238; border-color: var(--border); }
+.dot.current { box-shadow: 0 0 0 2px var(--accent); }
+
+/* ── Benchmark ──────────────────────────────────────── */
+.bench-section {
+  padding: 12px 16px;
+}
+.bench-section .bench-actions {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;
+}
+.bench-section .bench-actions button {
+  font-family: Inter; font-size: 11px; padding: 5px 12px;
+  border-radius: 6px; border: none; cursor: pointer; font-weight: 600;
+}
+.bench-section .bench-actions .start {
+  background: var(--blue); color: #fff;
+}
+.bench-section .bench-actions .stop {
+  background: var(--red); color: #fff;
+}
+.bench-section .bench-actions .report-btn {
+  background: var(--accent); color: #0a0e17;
+}
+.bench-report {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; margin-top: 8px;
+  font-size: 11px; display: none;
+}
+.bench-report.show { display: block; }
+.bench-report .verdict {
+  font-size: 16px; font-weight: 700; margin-bottom: 6px;
+}
+.bench-report .verdict.pass { color: var(--green); }
+.bench-report .verdict.partial { color: var(--orange); }
+.bench-report .verdict.fail { color: var(--red); }
+.bench-report .stat-row {
+  display: flex; justify-content: space-between;
+  padding: 2px 0; border-bottom: 1px solid var(--border-subtle);
+}
+.bench-report .stat-row:last-child { border-bottom: none; }
+
+/* Intent input */
+.intent-area {
+  padding: 10px 16px;
+}
+.intent-area textarea {
+  width: 100%; min-height: 80px;
+  background: #050810; border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text);
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  padding: 8px; resize: vertical; outline: none;
+}
+.intent-area textarea:focus { border-color: var(--accent); }
+
+/* Status banner */
+.banner {
+  padding: 6px 16px; font-size: 11px; font-weight: 500;
+  display: none; text-align: center;
+}
+.banner.show { display: block; }
+.banner.info { background: rgba(74, 158, 255, 0.15); color: var(--blue); }
+.banner.success { background: rgba(76, 175, 80, 0.15); color: var(--green); }
+.banner.error { background: rgba(255, 107, 107, 0.15); color: var(--red); }
+
+/* Episode selector row */
+.ep-row {
+  display: flex; align-items: center; gap: 8px;
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ═══ Top bar ═══ -->
+  <div class="topbar">
+    <span class="eyebrow">ZTP Replay</span>
+
+    <label>Dataset</label>
+    <select id="datasetSelect" onchange="onDatasetChange()">
+      <option value="">— loading —</option>
+    </select>
+
+    <label>Episode</label>
+    <div class="ep-row">
+      <select id="episodeSelect" onchange="onEpisodeChange()" disabled>
+        <option value="0">Episode 0</option>
+      </select>
+      <span style="font-size:10px;color:var(--text-3)" id="epFrameCount"></span>
+    </div>
+
+    <button class="secondary" onclick="clearLog()">Clear log</button>
+    <span class="status" id="statusText">Ready</span>
+  </div>
+
+  <!-- ═══ Main area ═══ -->
+  <div class="main">
+    <!-- Left: image + slider -->
+    <div class="left-panel">
+      <div class="image-area" id="imageArea">
+        <div class="image-placeholder" id="placeholder">
+          Select a dataset and episode,<br>then click a frame to begin
+        </div>
+        <img id="frameImage" style="display:none" alt="Dataset frame" />
+        <div class="image-info" id="imageInfo"></div>
+      </div>
+
+      <div class="slider-bar">
+        <button class="nav-btn" onclick="goToFrame(currentFrame - 1)" title="Previous">&larr;</button>
+        <span class="frame-label" id="frameLabel">0 / 0</span>
+        <input type="range" id="frameSlider" min="0" max="0" value="0"
+               oninput="onSliderChange()" disabled />
+        <button class="nav-btn" onclick="goToFrame(currentFrame + 1)" title="Next">&rarr;</button>
+        <label style="font-size:10px;color:var(--text-3)">
+          Auto: <input type="checkbox" id="autoAdvance" onchange="onAutoAdvance()" />
+          &#x2265;
+          <input type="number" id="latencyMs" value="500" min="10" max="10000" step="50"
+                 style="width:60px;font-family:'JetBrains Mono',monospace;font-size:10px;" /> ms
+        </label>
+      </div>
+    </div>
+
+    <!-- Right: comparison data -->
+    <div class="right-panel" id="rightPanel">
+      <!-- Action comparison -->
+      <div class="panel-section">
+        <h3>Action comparison</h3>
+        <div class="action-row">
+          <span class="label">Ground Truth</span>
+          <span class="value gt" id="gtAction">—</span>
+        </div>
+        <div class="action-row">
+          <span class="label">Gemma Intent Tool</span>
+          <span class="value pred" id="gemmaTool">—</span>
+        </div>
+        <div class="action-row">
+          <span class="label">Predicted Action</span>
+          <span class="value pred" id="predAction">—</span>
+        </div>
+        <div class="action-row">
+          <span class="label">State</span>
+          <span class="value" id="frameState" style="color:var(--text-3)">—</span>
+        </div>
+      </div>
+
+      <!-- Scores -->
+      <div class="panel-section">
+        <h3>Comparison scores</h3>
+        <div class="metric-grid" id="metricsGrid">
+          <div class="metric">
+            <div class="metric-label">Tool Match</div>
+            <div class="metric-value neutral" id="mTool">-</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Tool Accuracy</div>
+            <div class="metric-value neutral" id="mToolAcc">-</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Position Distance</div>
+            <div class="metric-value neutral" id="mPosDist">-</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Pos Error (norm)</div>
+            <div class="metric-value neutral" id="mPosNorm">-</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Action Distance</div>
+            <div class="metric-value neutral" id="mActDist">-</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Gripper Accuracy</div>
+            <div class="metric-value neutral" id="mGripAcc">-</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Latency</div>
+            <div class="metric-value neutral" id="mLatency">-</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Verdict</div>
+            <div class="metric-value neutral" id="mVerdict">-</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Intent input -->
+      <div class="intent-area">
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+          <span style="font-size:10px;font-family:'JetBrains Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:var(--text-3)">Gemma Intent JSON</span>
+          <button style="font-size:10px;padding:2px 8px;background:var(--accent);color:#0a0e17;border:none;border-radius:4px;cursor:pointer;font-weight:600" onclick="submitIntent()">Submit</button>
+          <button style="font-size:10px;padding:2px 8px;background:transparent;color:var(--text-2);border:1px solid var(--border);border-radius:4px;cursor:pointer" onclick="autoFillIntent()">Auto-fill GT</button>
+        </div>
+        <textarea id="intentInput" placeholder='{"tool": "gripper", "target": "handle", "params": {"gripper_open": true}, "reasoning": ""}'></textarea>
+      </div>
+
+      <!-- Timeline dots -->
+      <div class="timeline">
+        <h3>Episode timeline <span class="badge" id="dotCount" style="color:var(--text-3)">0 frames</span></h3>
+        <div class="dot-row" id="dotRow"></div>
+      </div>
+
+      <!-- Benchmark -->
+      <div class="bench-section">
+        <h3>Benchmark</h3>
+        <div class="bench-actions">
+          <button class="start" onclick="startBenchmark()">Start benchmark</button>
+          <button class="report-btn" onclick="getBenchmarkReport()">Get report</button>
+        </div>
+        <div class="bench-report" id="benchReport"></div>
+        <div id="benchStatus" style="font-size:10px;color:var(--text-3);margin-top:4px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Banner ═══ -->
+  <div class="banner" id="banner"></div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const state = {
+  datasets: [],
+  currentDataset: '',
+  currentEpisode: 0,
+  totalFrames: 0,
+  currentFrame: 0,
+  log: [],
+  benchmarkJobId: null,
+  autoTimer: null,
+  submitting: false,
+};
+
+// ── Init ───────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadDatasets();
+  // Auto-load first dataset
+  const sel = document.getElementById('datasetSelect');
+  if (sel.options.length > 0) {
+    await onDatasetChange();
+  }
+});
+
+// ── Dataset loading ────────────────────────────────────────────────────────
+async function loadDatasets() {
+  try {
+    const resp = await fetch('/api/replay/datasets');
+    const data = await resp.json();
+    state.datasets = data;
+    const sel = document.getElementById('datasetSelect');
+    sel.innerHTML = '';
+    data.forEach(ds => {
+      const opt = document.createElement('option');
+      opt.value = ds.id;
+      opt.textContent = ds.id + ' (' + ds.task_type + ')';
+      sel.appendChild(opt);
+    });
+    if (data.length > 0) {
+      sel.value = data[0].id;
+      state.currentDataset = data[0].id;
+    }
+  } catch (e) {
+    showBanner('Failed to load datasets: ' + e.message, 'error');
+  }
+}
+
+async function onDatasetChange() {
+  const sel = document.getElementById('datasetSelect');
+  state.currentDataset = sel.value;
+  if (!state.currentDataset) return;
+
+  const episodeSel = document.getElementById('episodeSelect');
+  episodeSel.disabled = true;
+  setStatus('Loading dataset...');
+
+  try {
+    const resp = await fetch('/api/replay/dataset/' + encodeURIComponent(state.currentDataset) + '/episodes');
+    if (!resp.ok) throw new Error(await resp.text());
+    const episodes = await resp.json();
+
+    episodeSel.innerHTML = '';
+    episodes.forEach(ep => {
+      const opt = document.createElement('option');
+      opt.value = ep.episode_index;
+      opt.textContent = 'Episode ' + ep.episode_index + ' (' + ep.num_frames + ' frames)';
+      episodeSel.appendChild(opt);
+    });
+
+    episodeSel.disabled = false;
+    state.currentEpisode = 0;
+    await onEpisodeChange();
+  } catch (e) {
+    showBanner('Dataset error: ' + e.message, 'error');
+    setStatus('Error loading');
+    episodeSel.disabled = false;
+    // Still try to select episode 0
+    await onEpisodeChange();
+  }
+}
+
+async function onEpisodeChange() {
+  const epSel = document.getElementById('episodeSelect');
+  state.currentEpisode = parseInt(epSel.value) || 0;
+  setStatus('Selecting episode...');
+
+  try {
+    const resp = await fetch('/api/replay/episode/select', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dataset: state.currentDataset,
+        episode: state.currentEpisode,
+      }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    state.totalFrames = data.num_frames || 0;
+
+    document.getElementById('epFrameCount').textContent = state.totalFrames + ' frames';
+    document.getElementById('frameSlider').max = Math.max(0, state.totalFrames - 1);
+    document.getElementById('frameSlider').value = 0;
+    document.getElementById('frameSlider').disabled = state.totalFrames === 0;
+
+    state.currentFrame = 0;
+    state.log = [];
+    updateFrameLabel();
+    clearDisplay();
+    clearDotRow();
+    clearBenchReport();
+    setStatus('Episode ' + state.currentEpisode + ' ready (' + state.totalFrames + ' frames)');
+  } catch (e) {
+    showBanner('Episode error: ' + e.message, 'error');
+    setStatus('Error');
+  }
+}
+
+// ── Frame navigation ───────────────────────────────────────────────────────
+function goToFrame(idx) {
+  if (idx < 0 || idx >= state.totalFrames) return;
+  state.currentFrame = idx;
+  document.getElementById('frameSlider').value = idx;
+  updateFrameLabel();
+  loadFrame(idx);
+}
+
+function onSliderChange() {
+  const val = parseInt(document.getElementById('frameSlider').value);
+  if (val !== state.currentFrame) {
+    state.currentFrame = val;
+    updateFrameLabel();
+    loadFrame(val);
+  }
+}
+
+function updateFrameLabel() {
+  const el = document.getElementById('frameLabel');
+  el.textContent = state.currentFrame + ' / ' + (state.totalFrames - 1);
+}
+
+async function loadFrame(idx) {
+  setStatus('Loading frame ' + idx + '...');
+  try {
+    const resp = await fetch('/api/replay/episode/frame?frame=' + idx);
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+
+    // Display image
+    const img = document.getElementById('frameImage');
+    const placeholder = document.getElementById('placeholder');
+    img.src = data.image_uri;
+    img.style.display = 'block';
+    placeholder.style.display = 'none';
+
+    document.getElementById('imageInfo').textContent =
+      'Ep ' + data.episode_index + ' · Frame ' + data.frame_index +
+      ' · ' + (data.image_size ? data.image_size[0] + 'x' + data.image_size[1] : '') +
+      ' · ' + data.camera_key;
+
+    // Display ground truth
+    const gt = data.action || [];
+    document.getElementById('gtAction').textContent = formatFloatList(gt);
+
+    const st = data.state || [];
+    document.getElementById('frameState').textContent = formatFloatList(st, 4);
+
+    // Check if we already have a comparison for this frame
+    const existing = state.log.find(l => l.frame_index === idx);
+    if (existing) {
+      displayComparison(existing);
+    } else {
+      // Clear prediction display
+      document.getElementById('gemmaTool').textContent = '—';
+      document.getElementById('predAction').textContent = '—';
+      clearMetrics();
+    }
+
+    setStatus('Frame ' + idx + ' loaded');
+  } catch (e) {
+    showBanner('Frame load error: ' + e.message, 'error');
+    setStatus('Error');
+  }
+}
+
+// ── Intent submission ──────────────────────────────────────────────────────
+async function submitIntent() {
+  if (state.submitting) return;
+  state.submitting = true;
+
+  let intent;
+  try {
+    intent = JSON.parse(document.getElementById('intentInput').value);
+  } catch (e) {
+    showBanner('Invalid JSON: ' + e.message, 'error');
+    state.submitting = false;
+    return;
+  }
+
+  const latency = parseInt(document.getElementById('latencyMs').value) || 0;
+
+  setStatus('Recording intent...');
+  try {
+    const resp = await fetch('/api/replay/episode/gemma-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dataset: state.currentDataset,
+        episode: state.currentEpisode,
+        frame: state.currentFrame,
+        intent: intent,
+        latency_ms: latency,
+      }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const fc = await resp.json();
+    state.log.push(fc);
+    displayComparison(fc);
+    addDot(fc);
+    setStatus('Intent recorded (frame ' + state.currentFrame + ')');
+
+    // Auto-advance
+    if (document.getElementById('autoAdvance').checked) {
+      scheduleAutoAdvance();
+    }
+  } catch (e) {
+    showBanner('Submit error: ' + e.message, 'error');
+    setStatus('Error');
+  }
+  state.submitting = false;
+}
+
+function scheduleAutoAdvance() {
+  if (state.autoTimer) clearTimeout(state.autoTimer);
+  const delay = parseInt(document.getElementById('latencyMs').value) || 500;
+  state.autoTimer = setTimeout(() => {
+    state.autoTimer = null;
+    if (state.currentFrame < state.totalFrames - 1) {
+      goToFrame(state.currentFrame + 1);
+    }
+  }, Math.max(delay, 100));
+}
+
+function onAutoAdvance() {
+  if (!document.getElementById('autoAdvance').checked) {
+    if (state.autoTimer) {
+      clearTimeout(state.autoTimer);
+      state.autoTimer = null;
+    }
+  }
+}
+
+function autoFillIntent() {
+  // Fill the intent textarea with a reasonable default based on ground truth
+  const gtText = document.getElementById('gtAction').textContent;
+  if (!gtText || gtText === '—') return;
+  const defaultIntent = {
+    tool: 'gripper',
+    target: '',
+    params: {},
+    reasoning: 'Auto-filled from ground truth',
+  };
+  document.getElementById('intentInput').value = JSON.stringify(defaultIntent, null, 2);
+}
+
+// ── Display comparison ─────────────────────────────────────────────────────
+function displayComparison(fc) {
+  if (!fc) return;
+  const s = fc.score;
+  if (!s) return;
+
+  document.getElementById('gemmaTool').textContent = s.tool_predicted + ' (GT: ' + s.tool_ground_truth + ')';
+  document.getElementById('predAction').textContent = formatFloatList(fc.predicted_action || []);
+
+  setMetric('mTool', s.tool_match ? 'MATCH' : 'MISMATCH', s.tool_match ? 'good' : 'bad');
+  setMetric('mToolAcc', (s.tool_accuracy * 100).toFixed(1) + '%', s.tool_accuracy >= 0.5 ? 'good' : 'bad');
+  setMetric('mPosDist', s.position_distance.toFixed(4), s.position_distance < 0.05 ? 'good' : s.position_distance < 0.15 ? 'ok' : 'bad');
+  setMetric('mPosNorm', (s.position_error_normalised * 100).toFixed(1) + '%', s.position_error_normalised >= 0.5 ? 'good' : 'bad');
+  setMetric('mActDist', s.action_distance.toFixed(4), 'neutral');
+  setMetric('mGripAcc', (s.gripper_accuracy * 100).toFixed(1) + '%', s.gripper_accuracy >= 0.5 ? 'good' : 'bad');
+  setMetric('mLatency', s.latency_ms.toFixed(1) + ' ms', s.latency_ms < 1000 ? 'good' : s.latency_ms < 3000 ? 'ok' : 'bad');
+  setMetric('mVerdict', s.success ? 'PASS' : 'FAIL', s.success ? 'good' : 'bad');
+}
+
+function setMetric(id, text, cls) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent = text; el.className = 'metric-value ' + (cls || 'neutral'); }
+}
+
+function clearMetrics() {
+  ['mTool','mToolAcc','mPosDist','mPosNorm','mActDist','mGripAcc','mLatency','mVerdict'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = '-'; el.className = 'metric-value neutral'; }
+  });
+}
+
+function clearDisplay() {
+  document.getElementById('gemmaTool').textContent = '—';
+  document.getElementById('predAction').textContent = '—';
+  clearMetrics();
+}
+
+// ── Timeline dots ──────────────────────────────────────────────────────────
+function addDot(fc) {
+  const row = document.getElementById('dotRow');
+  const dot = document.createElement('div');
+  dot.className = 'dot';
+
+  const s = fc.score;
+  if (s) {
+    if (s.success) dot.className = 'dot good';
+    else if (s.tool_match) dot.className = 'dot ok';
+    else dot.className = 'dot bad';
+  } else {
+    dot.className = 'dot pending';
+  }
+
+  dot.title = 'Frame ' + fc.frame_index + (s ? ' | ' + (s.success ? 'PASS' : 'FAIL') : '');
+  dot.onclick = () => goToFrame(fc.frame_index);
+  row.appendChild(dot);
+
+  document.getElementById('dotCount').textContent = state.log.length + ' frames';
+  row.scrollTop = row.scrollHeight;
+}
+
+function clearDotRow() {
+  document.getElementById('dotRow').innerHTML = '';
+  document.getElementById('dotCount').textContent = '0 frames';
+}
+
+// ── Log management ─────────────────────────────────────────────────────────
+async function clearLog() {
+  try {
+    await fetch('/api/replay/episode/clear', { method: 'POST' });
+  } catch (e) { /* ignore */ }
+  state.log = [];
+  clearDotRow();
+  clearDisplay();
+  document.getElementById('frameImage').style.display = 'none';
+  document.getElementById('placeholder').style.display = 'block';
+  setStatus('Log cleared');
+}
+
+// ── Benchmark ──────────────────────────────────────────────────────────────
+async function startBenchmark() {
+  clearLog();
+  clearDotRow();
+
+  try {
+    const resp = await fetch('/api/replay/benchmark', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dataset: state.currentDataset,
+        episode: state.currentEpisode,
+        max_frames: -1,
+      }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    state.benchmarkJobId = data.job_id;
+    document.getElementById('benchStatus').textContent =
+      'Benchmark started: ' + data.total_frames + ' frames. Submit intent for each frame, then get report.';
+    showBanner('Benchmark job ' + data.job_id + ' started', 'info');
+
+    // Reset to frame 0
+    goToFrame(0);
+  } catch (e) {
+    showBanner('Benchmark error: ' + e.message, 'error');
+  }
+}
+
+async function getBenchmarkReport() {
+  if (!state.benchmarkJobId) {
+    // Try to build report from current log
+    try {
+      const resp = await fetch('/api/replay/benchmark/report_agg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        displayBenchReport(data.report || data);
+        return;
+      }
+    } catch (e) { /* fall through */ }
+    showBanner('No benchmark job active. Start one first.', 'error');
+    return;
+  }
+
+  try {
+    const resp = await fetch('/api/replay/benchmark/' + state.benchmarkJobId + '/report');
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    displayBenchReport(data.report || data);
+  } catch (e) {
+    showBanner('Report error: ' + e.message, 'error');
+  }
+}
+
+function displayBenchReport(report) {
+  const el = document.getElementById('benchReport');
+  el.className = 'bench-report show';
+
+  if (!report || !report.aggregate) {
+    el.innerHTML = '<div style="color:var(--red)">No data available</div>';
+    return;
+  }
+
+  const agg = report.aggregate;
+  const verdict = (report.verdict || 'N/A').toLowerCase();
+  el.innerHTML = `
+    <div class="verdict ${verdict}">${report.verdict || 'N/A'}</div>
+    <div class="stat-row"><span>Frames</span><span>${agg.num_frames}</span></div>
+    <div class="stat-row"><span>Tool Accuracy</span><span>${(agg.tool_accuracy * 100).toFixed(1)}%</span></div>
+    <div class="stat-row"><span>Avg Position Distance</span><span>${agg.avg_position_distance.toFixed(4)}</span></div>
+    <div class="stat-row"><span>Avg Action Distance</span><span>${agg.avg_action_distance.toFixed(4)}</span></div>
+    <div class="stat-row"><span>Gripper Accuracy</span><span>${(agg.avg_gripper_accuracy * 100).toFixed(1)}%</span></div>
+    <div class="stat-row"><span>Avg Latency</span><span>${agg.avg_latency_ms.toFixed(1)} ms</span></div>
+    <div class="stat-row"><span>Success Rate</span><span>${(agg.success_rate * 100).toFixed(1)}%</span></div>
+    <div style="margin-top:6px;font-style:italic;color:var(--text-2);font-size:10px">${report.conclusion || ''}</div>
+  `;
+}
+
+function clearBenchReport() {
+  const el = document.getElementById('benchReport');
+  el.className = 'bench-report';
+  el.innerHTML = '';
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+function formatFloatList(arr, max = 6) {
+  if (!arr || arr.length === 0) return '[]';
+  let s = '[';
+  const n = Math.min(max, arr.length);
+  for (let i = 0; i < n; i++) {
+    if (i > 0) s += ', ';
+    s += typeof arr[i] === 'number' ? arr[i].toFixed(4) : arr[i];
+  }
+  if (arr.length > max) s += ', ...';
+  s += ']';
+  return s;
+}
+
+function setStatus(msg) {
+  document.getElementById('statusText').textContent = msg;
+}
+
+let bannerTimer = null;
+function showBanner(msg, type) {
+  const el = document.getElementById('banner');
+  el.textContent = msg;
+  el.className = 'banner show ' + (type || 'info');
+  if (bannerTimer) clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => {
+    el.className = 'banner';
+    bannerTimer = null;
+  }, 4000);
+}
+
+// ── Keyboard shortcuts ─────────────────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  if (e.key === 'ArrowRight') { e.preventDefault(); goToFrame(state.currentFrame + 1); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); goToFrame(state.currentFrame - 1); }
+  if (e.key === 's' || e.key === 'Enter') { submitIntent(); }
+});
+</script>
+</body>
+</html>

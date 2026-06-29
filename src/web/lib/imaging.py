@@ -44,9 +44,6 @@ def img_to_b64(img: np.ndarray, fmt: str = "JPEG", quality: int = 50) -> str:
 # Composite images
 # ---------------------------------------------------------------------------
 
-# Default canvas if a camera is missing.
-_BLANK = np.zeros((384, 384, 3), dtype=np.uint8)
-
 
 def fix_img(img: np.ndarray | None) -> np.ndarray:
     """Flip robosuite camera output to the right orientation."""
