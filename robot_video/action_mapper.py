@@ -26,7 +26,7 @@ DATASET_REGISTRY: dict[str, dict[str, Any]] = {
         "position_indices": [0, 1],
         "description": "Push the T-shaped block to the green target zone",
         "tools": ["move_to", "stop"],
-        "camera_keys": ["top"],
+        "camera_keys": ["observation.image"],
         "task_family": "pushing",
     },
     "lerobot/aloha_sim_transfer_cube_human": {
