@@ -312,15 +312,14 @@ class SmartRouter:
 
     def call_reasoning(
         self,
-        image_b64: str | None,
-        task_prompt: str,
-        tools_schema: dict[str, Any] | None = None,
-        task_type: str = "vision_reasoning",
-        system_prompt: str | None = None,
-        temperature: float = 0.0,
-        max_tokens: int = 500,
-        prefer_free: bool = True,
-    ) -> dict[str, Any] | str | None:
+        image_b64=None,
+        task_prompt="",
+        tools_schema=None,
+        task_type="vision_reasoning",
+        system_prompt=None,
+        prefer_free=True,
+        max_tokens=512,
+    ) -> dict | None:
         """Full call pipeline with model selection and automatic fallback.
 
         Args:

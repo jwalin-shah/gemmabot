@@ -471,10 +471,15 @@ class SamPerceptor:
     def detect(self, rgb: np.ndarray) -> list[Detection]:
         """Segment tabletop objects using point-prompted SAM.
 
-        Generates a grid of prompt points (points_per_side x points_per_side),
-        runs SAM for each, filters by IoU score and area, and returns
-        Detection objects.
+        Auto-upsamples images smaller than 256px to ensure SAM can detect objects.
         """
+        h, w = rgb.shape[:2]
+        if h < 256 or w < 256:
+            scale = max(384 / h, 384 / w)
+            new_w, new_h = int(w * scale), int(h * scale)
+            import cv2
+            rgb = cv2.resize(rgb, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+
         cached = self._load_model()
         processor = cached["processor"]
         model = cached["model"]

@@ -342,7 +342,7 @@ class GemmaBrain:
                 image_b64=composite_b64,
                 temperature=0.0,
                 seed=42,
-                max_tokens=300,
+                max_tokens=512,
                 response_format={"type": "json_schema", "json_schema": build_intent_schema()},
             )
         else:
@@ -351,7 +351,7 @@ class GemmaBrain:
                 messages=[{"role": "user", "content": prompt_text}],
                 temperature=0.0,
                 seed=42,
-                max_tokens=300,
+                max_tokens=512,
                 response_format={"type": "json_schema", "json_schema": build_intent_schema()},
             )
         latency_ms = round((time.perf_counter() - t0) * 1000)
