@@ -36,7 +36,7 @@ DATASET_REGISTRY: dict[str, dict[str, Any]] = {
         "position_indices": [0, 1, 2],
         "description": "Pick up the cube and transfer it to the other arm",
         "tools": ["move_to", "grasp", "release", "stop"],
-        "camera_keys": ["cam_high", "cam_left_wrist", "cam_right_wrist"],
+        "camera_keys": ["observation.images.cam_high", "observation.images.cam_left_wrist", "observation.images.cam_right_wrist"],
         "task_family": "bi_manipulation",
     },
     "lerobot/aloha_mobile_cabinet": {
@@ -46,7 +46,7 @@ DATASET_REGISTRY: dict[str, dict[str, Any]] = {
         "position_indices": [0, 1, 2],
         "description": "Open the cabinet door using the handle",
         "tools": ["move_to", "grasp", "pull", "release", "stop"],
-        "camera_keys": ["cam_high", "cam_left_wrist", "cam_right_wrist"],
+        "camera_keys": ["observation.images.cam_high", "observation.images.cam_left_wrist", "observation.images.cam_right_wrist"],
         "task_family": "mobile_manipulation",
     },
     "lerobot/droid": {
@@ -56,7 +56,7 @@ DATASET_REGISTRY: dict[str, dict[str, Any]] = {
         "position_indices": [0, 1, 2],
         "description": "Pick and place objects on a tabletop",
         "tools": ["move_to", "grasp", "lift", "place", "stop"],
-        "camera_keys": ["cam_high", "cam_wrist"],
+        "camera_keys": ["observation.images.cam_high", "observation.images.cam_wrist"],
         "task_family": "pick_place",
     },
     "lerobot/bridge_orig": {
@@ -66,7 +66,7 @@ DATASET_REGISTRY: dict[str, dict[str, Any]] = {
         "position_indices": [0, 1, 2],
         "description": "Push, slide, or pick up objects on a tabletop",
         "tools": ["move_to", "grasp", "release", "stop"],
-        "camera_keys": ["cam_high", "cam_wrist"],
+        "camera_keys": ["observation.images.cam_high", "observation.images.cam_wrist"],
         "task_family": "pick_place",
     },
     "lerobot/kuka": {
@@ -86,7 +86,7 @@ DATASET_REGISTRY: dict[str, dict[str, Any]] = {
         "position_indices": [0, 1, 2],
         "description": "Pick up the object and place it at the target location",
         "tools": ["move_to", "grasp", "lift", "place", "stop"],
-        "camera_keys": ["agentview", "robot0_eye_in_hand"],
+        "camera_keys": ["agentview_image", "robot0_eye_in_hand_image"],
         "task_family": "pick_place",
     },
     "lerobot/libero_spatial_no_noops": {
@@ -96,7 +96,7 @@ DATASET_REGISTRY: dict[str, dict[str, Any]] = {
         "position_indices": [0, 1, 2],
         "description": "Pick an object from one location and place at another",
         "tools": ["move_to", "grasp", "lift", "place", "stop"],
-        "camera_keys": ["agentview", "robot0_eye_in_hand"],
+        "camera_keys": ["agentview_image", "robot0_eye_in_hand_image"],
         "task_family": "pick_place",
     },
     "lerobot/taco_play": {
@@ -106,7 +106,7 @@ DATASET_REGISTRY: dict[str, dict[str, Any]] = {
         "position_indices": [0, 1, 2],
         "description": "Pick and place objects on a tabletop",
         "tools": ["move_to", "grasp", "release", "stop"],
-        "camera_keys": ["cam_high", "cam_wrist"],
+        "camera_keys": ["observation.images.cam_high", "observation.images.cam_wrist"],
         "task_family": "pick_place",
     },
     "lerobot/nyu_door_opening": {
@@ -116,7 +116,7 @@ DATASET_REGISTRY: dict[str, dict[str, Any]] = {
         "position_indices": [0, 1, 2],
         "description": "Open a door by grasping the handle and pulling",
         "tools": ["move_to", "grasp", "pull", "release", "stop"],
-        "camera_keys": ["cam_high", "cam_wrist"],
+        "camera_keys": ["observation.images.cam_high", "observation.images.cam_wrist"],
         "task_family": "mobile_manipulation",
     },
     "lerobot/berkeley_autolab_ur5": {
