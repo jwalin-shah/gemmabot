@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import os
 import time
-from dataclasses import dataclass, field
 from typing import Any
 
 from cerebras.cloud.sdk import Cerebras
@@ -16,19 +16,10 @@ from src.config import (
     REASONING_EFFORT,
     TEMPERATURE,
 )
+from src.provider import InferenceResult
 
 
 __all__: list[str] = []
-
-
-@dataclass
-class InferenceResult:
-    content: str
-    model: str
-    usage: dict[str, Any] = field(default_factory=dict)
-    time_info: dict[str, Any] = field(default_factory=dict)
-    latency_s: float = 0.0
-    tool_calls: list[dict[str, Any]] | None = None
 
 
 class CerebrasClient:

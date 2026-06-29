@@ -132,7 +132,6 @@ async def api_reset(task: str | None = None) -> dict:
 
 
 @app.get("/api/step")
-@app.get("/api/step")
 async def api_step(task: str | None = None) -> dict:
     """One Gemma call + one tool execution. Returns frames + intent + verdict.
 

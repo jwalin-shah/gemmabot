@@ -188,13 +188,13 @@ def _determine_winner() -> str | None:
 def _build_sim_runner(label: str, throttled: bool = False, brain_type: str = "json") -> SimRunner:
     """Create a world, brain, and loop for one simulation side."""
     world = build_world()
-    provider = ProviderRegistry.default()
+    client = CerebrasClient()
     if throttled:
-        client = ThrottledClient(provider, extra_latency_s=GPU_EXTRA_LATENCY_S)
+        client = ThrottledClient(client, extra_latency_s=GPU_EXTRA_LATENCY_S)
     if brain_type == "tool":
-        brain = ToolCallingBrain(provider)
+        brain = ToolCallingBrain(client)
     else:
-        brain = RobotBrain(provider)
+        brain = RobotBrain(client)
     loop = ReactiveLoop(world, brain)
     loop.set_instruction(INSTRUCTION)
 
@@ -485,8 +485,8 @@ async def api_pipeline(req: PipelineRequest) -> JSONResponse:
         )
 
     try:
-        provider = ProviderRegistry.default()
-        orchestrator = AgentOrchestrator(provider)
+        client = CerebrasClient()
+        orchestrator = AgentOrchestrator(client)
         result = orchestrator.run(WORKSPACE_IMAGE, task=req.task, mode=req.mode)
 
         response = {
@@ -522,8 +522,8 @@ async def api_pipeline_results(mode: str = "parallel") -> JSONResponse:
     if _pipeline_cache is None:
         # Auto-run pipeline if no cache exists
         try:
-            provider = ProviderRegistry.default()
-            orchestrator = AgentOrchestrator(provider)
+            client = CerebrasClient()
+            orchestrator = AgentOrchestrator(client)
             result = orchestrator.run(
                 WORKSPACE_IMAGE,
                 task="Identify objects in the scene, their positions, "

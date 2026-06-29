@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Iterable
 
-from src.client import CerebrasClient
+from src.provider import LLMProvider
 from src.web.lib.imaging import img_to_b64, make_composite, overlay_grid
 from src.web.lib.sim import Snapshot
 from src.web.lib.tasks import TaskSpec
@@ -241,12 +241,13 @@ def _prompt(task: str, snap: Snapshot, history: Iterable[HistoryItem], spec: Tas
 
 class GemmaBrain:
 
-    def __init__(self, client: CerebrasClient | None = None) -> None:
-        self._client = client
+    def __init__(self, provider: LLMProvider | None = None) -> None:
+        self._client = provider
 
-    def _ensure_client(self) -> CerebrasClient:
+    def _ensure_provider(self) -> LLMProvider:
         if self._client is None:
-            self._client = CerebrasClient()
+            from src.provider import ProviderRegistry
+            self._client = ProviderRegistry.default()
         return self._client
 
     def think(self, task: str, snap: Snapshot, history: Iterable[HistoryItem], spec: TaskSpec | None = None, prev_snap: Snapshot | None = None, send_image: bool = True) -> Intent:
@@ -260,7 +261,7 @@ class GemmaBrain:
                     snap.eye_in_hand,
                 )
             )
-            result = self._ensure_client().image_chat(
+            result = self._ensure_provider().image_chat(
                 prompt=_prompt(task, snap, history, spec, prev_snap),
                 image_b64=composite_b64,
                 temperature=0.0,
@@ -270,7 +271,7 @@ class GemmaBrain:
             )
         else:
             # Text-only call — no image, saves ~300ms
-            result = self._ensure_client().chat(
+            result = self._ensure_provider().chat(
                 messages=[{"role": "user", "content": _prompt(task, snap, history, spec, prev_snap)}],
                 temperature=0.0,
                 seed=42,

@@ -26,5 +26,8 @@ overnight_results/
 # Archive (old code kept locally, not part of the project)
 _archive/
 
+# Generated artifacts
+ztp_integration/demo/visualizer.html
+
 # Large binary example images
 examples/images/real/

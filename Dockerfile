@@ -15,8 +15,8 @@ COPY examples/ ./examples/
 COPY .env.example ./
 
 # Install Python deps
-RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install --no-cache-dir fastapi uvicorn[standard] sse-starlette jinja2 aiofiles
+COPY pyproject.toml uv.lock ./
+RUN pip install --no-cache-dir -e .
 
 # Expose port
 EXPOSE 8000
