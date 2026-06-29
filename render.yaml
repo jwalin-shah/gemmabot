@@ -9,6 +9,7 @@ services:
     branch: main
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
+    port: 8002
     envVars:
       - key: CEREBRAS_API_KEY
         sync: false

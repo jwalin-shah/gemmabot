@@ -8,18 +8,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy project files
-COPY pyproject.toml requirements.txt uv.lock ./
+COPY pyproject.toml uv.lock ./
 COPY src/ ./src/
 COPY robot_video/ ./robot_video/
 COPY examples/ ./examples/
 COPY .env.example ./
 
 # Install Python deps
-COPY pyproject.toml uv.lock ./
 RUN pip install --no-cache-dir -e .
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8002
+EXPOSE 8003
 
 # Run server
-CMD ["uvicorn", "src.web.server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "src.web.robosuite_server:app", "--host", "0.0.0.0", "--port", "8002"]
