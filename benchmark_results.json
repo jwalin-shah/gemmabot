@@ -2,123 +2,60 @@
   "results": {
     "aloha_mobile_cabinet": {
       "num_frames": 4,
-      "tool_accuracy": 0.25,
+      "tool_accuracy": 0.5,
       "avg_position_distance": 0.029066,
-      "avg_action_distance": 0.415056,
+      "avg_action_distance": 0.419013,
       "avg_gripper_accuracy": 0.75,
-      "avg_latency_ms": 6424.94,
+      "avg_latency_ms": 5808.2,
       "success_rate": 0.75,
       "position_error_p50": 0.030871,
       "position_error_p95": 0.042289
-    },
-    "pusht": {
-      "num_frames": 4,
-      "tool_accuracy": 1.0,
-      "avg_position_distance": 28.516027,
-      "avg_action_distance": 28.516027,
-      "avg_gripper_accuracy": 1.0,
-      "avg_latency_ms": 6029.42,
-      "success_rate": 1.0,
-      "position_error_p50": 32.342826,
-      "position_error_p95": 32.758892
     }
   },
   "logs": [
     {
       "dataset": "aloha",
       "frame": 0,
-      "sam_dets": 0,
+      "sam_dets": 3,
       "gemma_tool": "move_to",
       "gt_tool": "move_to",
       "match": true,
       "pos_err": 0.030871,
-      "latency": 4.420147333003115
+      "latency": 2.089633915995364,
+      "reasoning": "The robot is currently in the approach stage and the arm is retracted. To open the cabinet, it must "
     },
     {
       "dataset": "aloha",
       "frame": 5,
-      "sam_dets": 0,
-      "gemma_tool": "move_to",
+      "sam_dets": 3,
+      "gemma_tool": "grasp",
       "gt_tool": "grasp",
-      "match": false,
+      "match": true,
       "pos_err": 0.025346,
-      "latency": 2.284909249996417
+      "latency": 12.259030792003614,
+      "reasoning": "The robot gripper is already near the cabinet handle (obj0), and the current stage is to grasp it be"
     },
     {
       "dataset": "aloha",
       "frame": 10,
-      "sam_dets": 0,
-      "gemma_tool": "move_to",
+      "sam_dets": 2,
+      "gemma_tool": "pull",
       "gt_tool": "release",
       "match": false,
       "pos_err": 0.017757,
-      "latency": 1.4481417920032982
+      "latency": 1.4721857909898972,
+      "reasoning": "The robot has already gripped the handle, as stated in the stage description. The SAM detection indi"
     },
     {
       "dataset": "aloha",
       "frame": 20,
-      "sam_dets": 0,
-      "gemma_tool": "move_to",
+      "sam_dets": 2,
+      "gemma_tool": "pull",
       "gt_tool": "release",
       "match": false,
       "pos_err": 0.042289,
-      "latency": 17.546574833002524
-    },
-    {
-      "dataset": "pusht",
-      "frame": 0,
-      "sam_dets": 0,
-      "gemma_tool": "move_to",
-      "gemma_zone": "E",
-      "gt_action": [
-        233.0,
-        71.0
-      ],
-      "match": true,
-      "pos_err": 28.231188,
-      "latency": 11.126691791010671
-    },
-    {
-      "dataset": "pusht",
-      "frame": 5,
-      "sam_dets": 0,
-      "gemma_tool": "move_to",
-      "gemma_zone": "E",
-      "gt_action": [
-        251.0,
-        95.0
-      ],
-      "match": true,
-      "pos_err": 20.7312,
-      "latency": 1.986132332996931
-    },
-    {
-      "dataset": "pusht",
-      "frame": 10,
-      "sam_dets": 0,
-      "gemma_tool": "move_to",
-      "gemma_zone": "E",
-      "gt_action": [
-        302.0,
-        137.0
-      ],
-      "match": true,
-      "pos_err": 32.758892,
-      "latency": 9.392420499993023
-    },
-    {
-      "dataset": "pusht",
-      "frame": 20,
-      "sam_dets": 0,
-      "gemma_tool": "move_to",
-      "gemma_zone": "B",
-      "gt_action": [
-        360.0,
-        221.0
-      ],
-      "match": true,
-      "pos_err": 32.342826,
-      "latency": 1.6124329170124838
+      "latency": 7.411940958001651,
+      "reasoning": "The door is already partially open, and the SAM detection indicates the door is moving into the targ"
     }
   ]
 }
