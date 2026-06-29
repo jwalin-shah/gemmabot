@@ -429,9 +429,10 @@ class SamPerceptor:
         self._processor = None
         self._generator = None
 
-    def _load_model(self) -> dict:
-        """Lazy-load SAM model and processor, cached at module level."""
-        key = f"{self.model_type}:{self.device}"
+    def _load_model(self, pps: int | None = None) -> dict:
+        """Lazy-load SAM model and processor, cached per point density."""
+        pps = pps or self.points_per_side
+        key = f"{self.model_type}:{self.device}:pps={pps}"
         if key in self._MODEL_CACHE:
             return self._MODEL_CACHE[key]
 
@@ -442,20 +443,16 @@ class SamPerceptor:
         model = SamModel.from_pretrained(self.model_type).to(self.device)
         model.eval()
 
-        # Pre-compute point grid for automatic mask generation
-        # Instead of SamAutomaticMaskGenerator (unavailable), we generate
-        # a grid of prompt points and run the forward pass for each.
-        points_per_side = self.points_per_side
-        side = points_per_side
+        side = pps
         grid_x, grid_y = torch.meshgrid(
             torch.linspace(0, 1023, side),
             torch.linspace(0, 1023, side),
             indexing="xy",
         )
-        point_grid = torch.stack([grid_x.flatten(), grid_y.flatten()], dim=-1)  # (N, 2)
-        point_grid = point_grid.unsqueeze(0).unsqueeze(2).to(self.device)  # (1, N, 1, 2)
+        point_grid = torch.stack([grid_x.flatten(), grid_y.flatten()], dim=-1)
+        point_grid = point_grid.unsqueeze(0).unsqueeze(2).to(self.device)
         n_pts = point_grid.shape[1]
-        point_labels = torch.ones(1, n_pts, 1, dtype=torch.long).to(self.device)  # (1, N, 1)
+        point_labels = torch.ones(1, n_pts, 1, dtype=torch.long).to(self.device)
 
         cached = {
             "processor": processor,
@@ -465,22 +462,31 @@ class SamPerceptor:
             "device": self.device,
         }
         self._MODEL_CACHE[key] = cached
-        self._MODEL_CACHE[key] = cached
         return cached
+
 
     def detect(self, rgb: np.ndarray) -> list[Detection]:
         """Segment tabletop objects using point-prompted SAM.
 
-        Auto-upsamples images smaller than 256px to ensure SAM can detect objects.
+        Auto-upsamples images smaller than 256px, and scales the point grid
+        density proportionally to image area so large images get more coverage.
         """
         h, w = rgb.shape[:2]
+        # Scale points_per_side by image dimensions (baseline: 8 for 384x384)
+        base_res = 384
+        scale_factor = max(1.0, (h * w) / (base_res * base_res))
+        effective_pps = max(4, int(self.points_per_side * scale_factor ** 0.5))
+        # Cap at reasonable max to avoid OOM
+        effective_pps = min(effective_pps, 24)
+        
         if h < 256 or w < 256:
-            scale = max(384 / h, 384 / w)
+            scale = max(base_res / h, base_res / w)
             new_w, new_h = int(w * scale), int(h * scale)
             import cv2
             rgb = cv2.resize(rgb, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+            effective_pps = max(effective_pps, 6)
 
-        cached = self._load_model()
+        cached = self._load_model(pps=effective_pps)
         processor = cached["processor"]
         model = cached["model"]
         point_grid = cached["point_grid"]

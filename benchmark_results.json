@@ -1,0 +1,144 @@
+{
+  "results": {
+    "aloha_mobile_cabinet": {
+      "num_frames": 4,
+      "tool_accuracy": 0.25,
+      "avg_position_distance": 0.029066,
+      "avg_action_distance": 0.415056,
+      "avg_gripper_accuracy": 0.75,
+      "avg_latency_ms": 35682.45,
+      "success_rate": 0.75,
+      "position_error_p50": 0.030871,
+      "position_error_p95": 0.042289
+    },
+    "pusht": {
+      "num_frames": 4,
+      "tool_accuracy": 1.0,
+      "avg_position_distance": 252.708982,
+      "avg_action_distance": 252.708982,
+      "avg_gripper_accuracy": 1.0,
+      "avg_latency_ms": 12388.66,
+      "success_rate": 0.0,
+      "position_error_p50": 248.555829,
+      "position_error_p95": 346.353865
+    }
+  },
+  "logs": [
+    {
+      "dataset": "aloha",
+      "frame": 0,
+      "sam_dets": 0,
+      "gemma_tool": "move_to",
+      "gt_tool": "move_to",
+      "match": true,
+      "pos_err": 0.030871,
+      "latency": 38.70121395800379,
+      "reasoning": ""
+    },
+    {
+      "dataset": "aloha",
+      "frame": 5,
+      "sam_dets": 0,
+      "gemma_tool": "move_to",
+      "gt_tool": "grasp",
+      "match": false,
+      "pos_err": 0.025346,
+      "latency": 22.775825624994468,
+      "reasoning": ""
+    },
+    {
+      "dataset": "aloha",
+      "frame": 10,
+      "sam_dets": 0,
+      "gemma_tool": "move_to",
+      "gt_tool": "release",
+      "match": false,
+      "pos_err": 0.017757,
+      "latency": 19.531938000000082,
+      "reasoning": ""
+    },
+    {
+      "dataset": "aloha",
+      "frame": 20,
+      "sam_dets": 0,
+      "gemma_tool": "move_to",
+      "gt_tool": "release",
+      "match": false,
+      "pos_err": 0.042289,
+      "latency": 61.72080812499917,
+      "reasoning": ""
+    },
+    {
+      "dataset": "pusht",
+      "frame": 0,
+      "sam_dets": 0,
+      "gemma_tool": "move_to",
+      "gt_tool": "move_to",
+      "match": true,
+      "pos_err": 220.782699,
+      "human_act": [
+        233.0,
+        71.0
+      ],
+      "gemma_pos": [
+        425,
+        180
+      ],
+      "latency": 2.1448127920011757
+    },
+    {
+      "dataset": "pusht",
+      "frame": 5,
+      "sam_dets": 0,
+      "gemma_tool": "move_to",
+      "gt_tool": "move_to",
+      "match": true,
+      "pos_err": 195.143537,
+      "human_act": [
+        251.0,
+        95.0
+      ],
+      "gemma_pos": [
+        435,
+        160
+      ],
+      "latency": 43.290028457995504
+    },
+    {
+      "dataset": "pusht",
+      "frame": 10,
+      "sam_dets": 0,
+      "gemma_tool": "move_to",
+      "gt_tool": "move_to",
+      "match": true,
+      "pos_err": 248.555829,
+      "human_act": [
+        302.0,
+        137.0
+      ],
+      "gemma_pos": [
+        538,
+        215
+      ],
+      "latency": 2.3192973749974044
+    },
+    {
+      "dataset": "pusht",
+      "frame": 20,
+      "sam_dets": 0,
+      "gemma_tool": "move_to",
+      "gt_tool": "move_to",
+      "match": true,
+      "pos_err": 346.353865,
+      "human_act": [
+        360.0,
+        221.0
+      ],
+      "gemma_pos": [
+        675,
+        365
+      ],
+      "latency": 1.800512208006694
+    }
+  ]
+}
