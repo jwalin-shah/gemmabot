@@ -20,20 +20,21 @@ from typing import Any, Callable
 
 from robot_video.frame_loader import LeRobotFrameSource, VideoFrame
 from robot_video.action_comparator import ActionComparator, ComparisonScore
-from robot_video.action_mapper import GemmaIntent
+from robot_video.action_mapper import GemmaIntent, get_task_config, available_datasets as registry_datasets
+
 
 # ---------------------------------------------------------------------------
-# Known datasets (public LeRobot datasets that work with this system)
+# Known datasets (backward compat — prefer DATASET_REGISTRY in action_mapper)
 # ---------------------------------------------------------------------------
 
 _KNOWN_DATASETS: dict[str, dict[str, Any]] = {
     "lerobot/aloha_mobile_cabinet": {
-        "task_type": "aloha_mobile_cabinet",
+        "task_type": "aloha_cabinet",
         "description": "ALOHA Mobile Cabinet Opening — 7-DOF teleoperated cabinet opening",
         "camera": "cam_high",
     },
-    "lerobot/aloha_sim_transfer_cube": {
-        "task_type": "aloha_sim_transfer_cube",
+    "lerobot/aloha_sim_transfer_cube_human": {
+        "task_type": "aloha_transfer_cube",
         "description": "ALOHA Sim Transfer Cube — pick-and-place in simulation",
         "camera": "cam_high",
     },
@@ -48,8 +49,21 @@ KNOWN_DATASET_IDS = list(_KNOWN_DATASETS.keys())
 
 
 def available_datasets() -> dict[str, dict[str, Any]]:
-    """Return metadata about all known datasets."""
-    return dict(_KNOWN_DATASETS)
+    """Return metadata about all known datasets.
+
+    Merges the engine's legacy dataset list with the DATASET_REGISTRY
+    from action_mapper.py for full coverage.
+    """
+    merged = dict(_KNOWN_DATASETS)
+    reg = registry_datasets()
+    for repo_id, config in reg.items():
+        if repo_id not in merged:
+            merged[repo_id] = {
+                "task_type": config["task_type"],
+                "description": config.get("description", ""),
+                "camera": config.get("camera_keys", [None])[0],
+            }
+    return merged
 
 
 # ---------------------------------------------------------------------------
@@ -132,18 +146,29 @@ class DatasetReplayEngine:
     def load_dataset(self, repo_id: str) -> dict[str, Any]:
         """Load a LeRobot dataset by repo ID.
 
+        First checks the DATASET_REGISTRY in action_mapper.py, then falls
+        back to the legacy _KNOWN_DATASETS dict, then infers from repo_id.
+
         Returns dataset info dict (same as dataset_info).
         """
-        # Determine task type from known datasets, or infer from repo_id
-        known = _KNOWN_DATASETS.get(repo_id)
-        if known is not None:
-            self._task_type = known["task_type"]
-        elif "pusht" in repo_id.lower():
-            self._task_type = "pusht"
+        # Check DATASET_REGISTRY first
+        reg_config = get_task_config(repo_id)
+        if reg_config is not None:
+            self._task_type = reg_config["task_type"]
+            camera_key = reg_config.get("camera_keys", [None])[0]
         else:
-            self._task_type = "aloha_mobile_cabinet"
+            # Fall back to legacy known datasets
+            known = _KNOWN_DATASETS.get(repo_id)
+            if known is not None:
+                self._task_type = known["task_type"]
+                camera_key = known.get("camera")
+            elif "pusht" in repo_id.lower():
+                self._task_type = "pusht"
+                camera_key = None
+            else:
+                self._task_type = "aloha_mobile_cabinet"
+                camera_key = None
 
-        camera_key = known["camera"] if known else None
         self._source = LeRobotFrameSource(repo_id, camera_key=camera_key)
         self._comparator = ActionComparator(task_type=self._task_type)
         self._log.clear()
@@ -302,6 +327,7 @@ class DatasetReplayEngine:
         object_positions: dict[str, list[float]] | None = None,
         on_frame: Callable[[int, FrameComparison], None] | None = None,
         sleep_between_frames: float = 0.0,
+        smart_router: Any | None = None,
     ) -> dict[str, Any]:
         """Run a full benchmark over an episode.
 
@@ -313,6 +339,11 @@ class DatasetReplayEngine:
             object_positions: Object positions for intent resolution.
             on_frame: Optional callback after each frame is processed.
             sleep_between_frames: Seconds to sleep between frames (for rate limiting).
+            smart_router: Optional SmartRouter instance. If provided, ``provider``
+                          is ignored and a benchmark provider is auto-created
+                          from the SmartRouter via its create_benchmark_provider().
+                          The SmartRouter handles model selection, fallback, and
+                          dataset-specific system prompts automatically.
 
         Returns:
             Benchmark report dict from ActionComparator.compute_benchmark().
@@ -323,6 +354,16 @@ class DatasetReplayEngine:
         self.select_episode(episode_idx)
         total = self._episode_frames if max_frames < 0 else min(max_frames, self._episode_frames)
 
+        # If a SmartRouter is provided, use it to create the benchmark provider
+        actual_provider = provider
+        if smart_router is not None:
+            reg_config = get_task_config(self._source.repo_id) if self._source else None
+            actual_provider = smart_router.create_benchmark_provider(
+                task_type="vision_reasoning",
+                task_family=self._task_type,
+                dataset_config=reg_config,
+            )
+
         for i in range(total):
             frame = self.get_frame(i)
             image_uri = frame.image_uri
@@ -332,7 +373,7 @@ class DatasetReplayEngine:
             # Call the provider to get a Gemma intent
             import time as _time
             t0 = _time.time()
-            intent = provider(image_uri, state, action)
+            intent = actual_provider(image_uri, state, action)
             elapsed_ms = (_time.time() - t0) * 1000.0
 
             fc = self.record_gemma_intent(intent, latency_ms=elapsed_ms, object_positions=object_positions)

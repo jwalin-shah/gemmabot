@@ -2,6 +2,8 @@
 
 One call = one composite image + EE proprioception + recent step history
 -> structured JSON {tool, params, reasoning}.
+
+Supports both raw LLMProvider and SmartRouter for model selection with fallback.
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import Iterable
 
 from src.provider import LLMProvider
+from src.provider_router import SmartRouter, default_router
 from src.web.lib.imaging import img_to_b64, make_composite, overlay_grid
 from src.web.lib.schema import build_intent_schema
 from src.web.lib.sim import Snapshot
@@ -83,7 +86,7 @@ def _mode_instructions(spec: TaskSpec | None) -> str:
         return (
             "\n\nCLEAR TABLE: Pick up each object ONE AT A TIME and place it in the right bin at "
             "(0.10, 0.28). Order: Can -> Milk -> Bread -> Cereal.\n"
-            "Check progress below -- objects marked PLACED \u2713 are done. "
+            "Check progress below -- objects marked PLACED ✓ are done. "
             "Focus on the first unplaced object.\n"
         )
     if m == "pick_place":
@@ -124,7 +127,7 @@ def _objects_text(snap: Snapshot, spec: TaskSpec, prev_snap: Snapshot | None = N
         is_placed = key in placed_keys
         
         if is_placed:
-            marker = " PLACED \u2713"
+            marker = " PLACED ✓"
         elif key == target_obj:
             marker = " <<< TARGET <<<"
         else:
@@ -137,7 +140,7 @@ def _objects_text(snap: Snapshot, spec: TaskSpec, prev_snap: Snapshot | None = N
             dy = float(pos[1]) - float(old[1])
             dist = (dx**2 + dy**2)**0.5
             if dist > 0.01:
-                changed = f" \u25c4 CHANGED ({dist*100:.1f}cm)"
+                changed = f" ◄ CHANGED ({dist*100:.1f}cm)"
         # Pre-computed distance from EE to this object
         ox, oy, oz = float(pos[0]), float(pos[1]), float(pos[2])
         ex, ey, ez = float(snap.ee_pos[0]), float(snap.ee_pos[1]), float(snap.ee_pos[2])
@@ -154,9 +157,9 @@ def _objects_text(snap: Snapshot, spec: TaskSpec, prev_snap: Snapshot | None = N
     if spec and spec.mode == "clear_table" and spec.compound_objects:
         remaining = [label_for.get(k, k) for k in spec.compound_objects if k not in placed_keys]
         if remaining:
-            lines.append(f"  \u2192 Still to place: {', '.join(remaining)}")
+            lines.append(f"  → Still to place: {', '.join(remaining)}")
         else:
-            lines.append(f"  \u2192 All objects placed in bin!")
+            lines.append(f"  → All objects placed in bin!")
     
     # Holding status: check if gripper has object
     if not snap.gripper_open:
@@ -211,8 +214,40 @@ def _prompt(task: str, snap: Snapshot, history: Iterable[HistoryItem], spec: Tas
 
 class GemmaBrain:
 
-    def __init__(self, provider: LLMProvider | None = None) -> None:
+    def __init__(
+        self,
+        provider: LLMProvider | None = None,
+        smart_router: SmartRouter | None = None,
+    ) -> None:
+        """Initialize the brain with either a raw provider or a SmartRouter.
+
+        Args:
+            provider: A raw LLMProvider instance. If None and no smart_router
+                      given, falls back to ProviderRegistry.default().
+            smart_router: Optional SmartRouter instance. If provided, the brain
+                          uses the router for model selection, fallback, and
+                          dataset-specific prompts instead of the raw provider.
+        """
         self._client = provider
+        self._router = smart_router
+
+    @classmethod
+    def from_router(
+        cls,
+        router: SmartRouter | None = None,
+    ) -> "GemmaBrain":
+        """Create a GemmaBrain wired to use a SmartRouter for model selection.
+
+        The SmartRouter handles automatic model tier selection, fallback
+        on failure, and dataset-specific system prompts.
+
+        Args:
+            router: SmartRouter instance (uses default_router() if None).
+
+        Returns:
+            GemmaBrain configured to use the router.
+        """
+        return cls(provider=None, smart_router=router or default_router())
 
     def _ensure_provider(self) -> LLMProvider:
         if self._client is None:
@@ -220,14 +255,80 @@ class GemmaBrain:
             self._client = ProviderRegistry.default()
         return self._client
 
-    def think(self, task: str, snap: Snapshot, history: Iterable[HistoryItem], spec: TaskSpec | None = None, prev_snap: Snapshot | None = None, send_image: bool = True, vision_text_override: str | None = None) -> Intent:
+    def think(
+        self,
+        task: str,
+        snap: Snapshot,
+        history: Iterable[HistoryItem],
+        spec: TaskSpec | None = None,
+        prev_snap: Snapshot | None = None,
+        send_image: bool = True,
+        vision_text_override: str | None = None,
+    ) -> Intent:
+        """Process the current scene and return the next robot action.
+
+        Supports both raw LLMProvider and SmartRouter modes:
+          - If ``self._router`` is set, uses SmartRouter.call_reasoning()
+            for model selection, fallback, and structured output.
+          - Otherwise uses the raw ``self._client`` provider.
+
+        Returns:
+            Intent with tool, params, reasoning, and latency_ms.
+        """
         t0 = time.perf_counter()
 
         # When vision_text_override is set, use it INSTEAD of _objects_text().
         # This is the blinding layer: Gemma sees camera-derived positions, not
         # ground-truth simulator object positions.
-        obj_block = vision_text_override if vision_text_override is not None else (_objects_text(snap, spec, prev_snap) if spec is not None else "")
+        obj_block = vision_text_override if vision_text_override is not None else (
+            _objects_text(snap, spec, prev_snap) if spec is not None else ""
+        )
 
+        prompt_text = _prompt(
+            task, snap, history, spec, prev_snap,
+            obj_block_override=vision_text_override,
+        )
+
+        # -- Smart Router path ------------------------------------------------
+        if self._router is not None:
+            composite_b64 = None
+            if send_image:
+                composite_b64 = img_to_b64(
+                    make_composite(
+                        overlay_grid(snap.birdview),
+                        snap.frontview,
+                        snap.eye_in_hand,
+                    )
+                )
+
+            result = self._router.call_reasoning(
+                image_b64=composite_b64,
+                task_prompt=prompt_text,
+                tools_schema=build_intent_schema(),
+                task_type="vision_reasoning",
+                system_prompt=None,
+                prefer_free=True,
+            )
+
+            latency_ms = round((time.perf_counter() - t0) * 1000)
+
+            if isinstance(result, dict):
+                tool = result.get("tool", "move_to")
+                params = result.get("params", {})
+                reasoning = result.get("reasoning", "")
+            else:
+                tool = "move_to"
+                params = {}
+                reasoning = "router_fallback"
+
+            return Intent(
+                tool=tool,
+                params=params,
+                reasoning=reasoning,
+                latency_ms=latency_ms,
+            )
+
+        # -- Raw provider path (original behavior) ---------------------------
         if send_image:
             composite_b64 = img_to_b64(
                 make_composite(
@@ -237,7 +338,7 @@ class GemmaBrain:
                 )
             )
             result = self._ensure_provider().image_chat(
-                prompt=_prompt(task, snap, history, spec, prev_snap, obj_block_override=vision_text_override),
+                prompt=prompt_text,
                 image_b64=composite_b64,
                 temperature=0.0,
                 seed=42,
@@ -247,7 +348,7 @@ class GemmaBrain:
         else:
             # Text-only call — no image, saves ~300ms
             result = self._ensure_provider().chat(
-                messages=[{"role": "user", "content": _prompt(task, snap, history, spec, prev_snap, obj_block_override=vision_text_override)}],
+                messages=[{"role": "user", "content": prompt_text}],
                 temperature=0.0,
                 seed=42,
                 max_tokens=300,
