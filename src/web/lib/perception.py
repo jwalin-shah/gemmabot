@@ -48,6 +48,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 import numpy as np
+import cv2
 
 
 # ---------------------------------------------------------------------------
@@ -406,7 +407,7 @@ class SamPerceptor:
         points_per_side: int = 16,
         pred_iou_thresh: float = 0.7,
         stability_score_thresh: float = 0.8,
-        min_mask_region_area: int = 200,
+        min_mask_region_area: int = 100,
         max_mask_region_area: int = 30000,
         color_labels: dict | None = None,
         label_fallback: str | None = None,
@@ -477,12 +478,11 @@ class SamPerceptor:
         scale_factor = max(1.0, (h * w) / (base_res * base_res))
         effective_pps = max(4, int(self.points_per_side * scale_factor ** 0.5))
         # Cap at reasonable max to avoid OOM
-        effective_pps = min(effective_pps, 24)
+        effective_pps = min(effective_pps, 32)
         
         if h < 256 or w < 256:
             scale = max(base_res / h, base_res / w)
             new_w, new_h = int(w * scale), int(h * scale)
-            import cv2
             rgb = cv2.resize(rgb, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
             effective_pps = max(effective_pps, 6)
 
