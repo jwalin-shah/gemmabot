@@ -32,7 +32,6 @@ __all__: list[str] = [
     "InferenceResult",
     "CerebrasProvider",
     "OpenRouterProvider",
-    "NvidiaNimProvider",
     "ProviderRegistry",
 ]
 
@@ -358,171 +357,6 @@ class OpenRouterProvider(LLMProvider):
         )
 
 
-class NvidiaNimProvider(LLMProvider):
-    """Nvidia NIM provider using httpx (OpenAI-compatible API).
-
-    Nvidia NIM provides a unified OpenAI-compatible API for various models.
-    Configurable via env vars:
-      - NVIDIA_NIM_API_KEY (required)
-      - NVIDIA_NIM_BASE_URL (default: https://integrate.api.nvidia.com/v1)
-      - NVIDIA_NIM_MODEL (default: meta/llama3-70b-instruct, but can be any NIM model)
-    """
-
-    def __init__(
-        self,
-        api_key: str | None = None,
-        model: str | None = None,
-        base_url: str | None = None,
-        timeout_s: int = 120,
-    ) -> None:
-        from src.config import NVIDIA_NIM_API_KEY, NVIDIA_NIM_BASE_URL, NVIDIA_NIM_MODEL
-        self._api_key = api_key or NVIDIA_NIM_API_KEY
-        self._model = model or NVIDIA_NIM_MODEL
-        self._base_url = (base_url or NVIDIA_NIM_BASE_URL).rstrip("/")
-        self._timeout_s = timeout_s
-        self._http_client: httpx.Client | None = None
-
-    @property
-    def _client(self) -> httpx.Client:
-        if self._http_client is None:
-            self._http_client = httpx.Client(
-                base_url=self._base_url,
-                timeout=httpx.Timeout(self._timeout_s, connect=10.0),
-                headers={
-                    "Authorization": f"Bearer {self._api_key}",
-                    "Content-Type": "application/json",
-                },
-            )
-        return self._http_client
-
-    def chat(
-        self,
-        messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None = None,
-        stream: bool = False,
-        **kwargs: Any,
-    ) -> InferenceResult:
-        if stream:
-            return self._stream(messages, tools=tools, **kwargs)
-        body = self._build_body(messages, tools=tools, **kwargs)
-        start = time.perf_counter()
-        response = self._client.post("/chat/completions", json=body)
-        elapsed = time.perf_counter() - start
-        try:
-            response.raise_for_status()
-        except httpx.HTTPStatusError:
-            detail = response.text[:500]
-            raise RuntimeError(f"NIM API error {response.status_code}: {detail}") from None
-        data = response.json()
-        return self._parse_response(data, elapsed)
-
-    def image_chat(
-        self,
-        prompt: str,
-        image_b64: str,
-        system_prompt: str | None = None,
-        **kwargs: Any,
-    ) -> InferenceResult:
-        messages: list[dict[str, Any]] = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({
-            "role": "user",
-            "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": image_b64, "detail": "high"}},
-            ],
-        })
-        return self.chat(messages, **kwargs)
-
-    def name(self) -> str:
-        return "nvidia_nim"
-
-    def is_available(self) -> bool:
-        key = self._api_key or os.environ.get("NVIDIA_NIM_API_KEY", "")
-        return bool(key)
-
-    def _build_body(
-        self,
-        messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None = None,
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        system_prompt = kwargs.pop("system_prompt", None)
-        if system_prompt:
-            messages = [{"role": "system", "content": system_prompt}, *messages]
-        max_tokens = kwargs.pop("max_tokens", kwargs.pop("max_completion_tokens", 1024))
-        temperature = kwargs.pop("temperature", 0.2)
-
-        body: dict[str, Any] = {
-            "model": self._model,
-            "messages": messages,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-        }
-
-        response_format = kwargs.pop("response_format", None)
-        if response_format:
-            body["response_format"] = response_format
-
-        if tools:
-            body["tools"] = tools
-            body["tool_choice"] = kwargs.pop("tool_choice", "auto")
-            body["parallel_tool_calls"] = kwargs.pop("parallel_tool_calls", True)
-
-        body.update(kwargs)
-        return body
-
-    def _stream(
-        self,
-        messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None = None,
-        **kwargs: Any,
-    ) -> InferenceResult:
-        body = self._build_body(messages, tools=tools, **kwargs)
-        body["stream"] = True
-        body["stream_options"] = {"include_usage": True}
-        content_parts: list[str] = []
-        final_usage: dict[str, Any] = {}
-        with self._client.stream("POST", "/chat/completions", json=body) as resp:
-            resp.raise_for_status()
-            for line in resp.iter_lines():
-                if not line.startswith("data: "):
-                    continue
-                payload = line[6:]
-                if payload == "[DONE]":
-                    break
-                try:
-                    chunk = json.loads(payload)
-                except json.JSONDecodeError:
-                    continue
-                choices = chunk.get("choices", [])
-                if choices and choices[0].get("delta", {}).get("content"):
-                    content_parts.append(choices[0]["delta"]["content"])
-                if chunk.get("usage"):
-                    final_usage = chunk["usage"]
-        return InferenceResult(
-            content="".join(content_parts), model=self._model,
-            usage=final_usage, latency_s=0.0,
-        )
-
-    def _parse_response(self, data: dict[str, Any], elapsed: float) -> InferenceResult:
-        choice = data["choices"][0]
-        message = choice["message"]
-        content = message.get("content", "") or ""
-        model = data.get("model", self._model)
-        usage = data.get("usage", {})
-        tool_calls = None
-        if message.get("tool_calls"):
-            tool_calls = [
-                {"id": tc["id"], "type": tc["type"],
-                 "function": {"name": tc["function"]["name"], "arguments": tc["function"]["arguments"]}}
-                for tc in message["tool_calls"]
-            ]
-        return InferenceResult(content=content, model=model, usage=usage, latency_s=elapsed, tool_calls=tool_calls)
-
-
-
 # ---------------------------------------------------------------------------
 # Provider Registry (singleton)
 # ---------------------------------------------------------------------------
@@ -656,7 +490,6 @@ class ProviderRegistry:
         return {
             "cerebras": CerebrasProvider(),
             "openrouter": OpenRouterProvider(),
-            "nvidia_nim": NvidiaNimProvider(),
         }
 
     @classmethod
