@@ -1,37 +1,53 @@
 {
-  "results": {},
+  "results": {
+    "taco_play": {
+      "num_frames": 4,
+      "tool_accuracy": 0.5,
+      "avg_position_distance": 0.457926,
+      "avg_action_distance": 3.15147,
+      "avg_gripper_accuracy": 0.5,
+      "avg_latency_ms": 3484.97,
+      "success_rate": 0.0,
+      "position_error_p50": 0.558845,
+      "position_error_p95": 0.583383
+    }
+  },
   "logs": [
     {
+      "dataset": "lerobot/taco_play",
       "frame": 0,
+      "sam": 5,
+      "gemma": "move_to",
+      "gt": "release",
+      "match": false,
+      "pos": 0.583383
+    },
+    {
+      "dataset": "lerobot/taco_play",
+      "frame": 5,
+      "sam": 3,
+      "gemma": "move_to",
+      "gt": "release",
+      "match": false,
+      "pos": 0.320586
+    },
+    {
+      "dataset": "lerobot/taco_play",
+      "frame": 10,
+      "sam": 2,
       "gemma": "move_to",
       "gt": "move_to",
       "match": true,
-      "latency": 12.11895203590393,
-      "reasoning": "The goal is to open the cabinet door. The robot's grippers are currently far from the cabinet handles. The first step is"
+      "pos": 0.558845
     },
     {
-      "frame": 5,
-      "gemma": "move_to",
-      "gt": "grasp",
-      "match": false,
-      "latency": 2.7581028938293457,
-      "reasoning": "The robot needs to open the cabinet door. Currently, the grippers are positioned on the counter near a pot. The first st"
-    },
-    {
-      "frame": 10,
-      "gemma": "move_to",
-      "gt": "release",
-      "match": false,
-      "latency": 1.9898700714111328,
-      "reasoning": "The goal is to open the cabinet door. The robot's grippers are currently positioned on the countertop, far from the cabi"
-    },
-    {
+      "dataset": "lerobot/taco_play",
       "frame": 20,
+      "sam": 6,
       "gemma": "move_to",
-      "gt": "release",
-      "match": false,
-      "latency": 2.033179998397827,
-      "reasoning": "The goal is to open the cabinet door. The robot's grippers are currently positioned in front of the counter and not yet "
+      "gt": "move_to",
+      "match": true,
+      "pos": 0.36889
     }
   ]
 }

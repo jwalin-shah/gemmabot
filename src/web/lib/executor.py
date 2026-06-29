@@ -51,13 +51,22 @@ class ToolDef:
 
 def resolve_target(target_name: str, snap: "Snapshot") -> tuple[float, float, float]:
     """Look up an object's (x, y, z) from the snapshot by name.
-    Exact match first, then case-insensitive substring fallback."""
+    Exact match first, then case-insensitive substring fallback
+    (prefers the LONGEST matching key for best specificity)."""
     target_pos = snap.objects.get(target_name)
     if target_pos is not None:
         return (float(target_pos[0]), float(target_pos[1]), float(target_pos[2]))
+    best_key = None
+    best_pos = None
+    best_len = 0
     for k, v in snap.objects.items():
-        if target_name.lower() in k.lower():
-            return (float(v[0]), float(v[1]), float(v[2]))
+        if k.lower() in target_name.lower():
+            if len(k) > best_len:
+                best_key = k
+                best_pos = v
+                best_len = len(k)
+    if best_pos is not None:
+        return (float(best_pos[0]), float(best_pos[1]), float(best_pos[2]))
     raise ValueError(f"Object {target_name!r} not found in {list(snap.objects)}")
 
 
