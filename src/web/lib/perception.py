@@ -383,14 +383,14 @@ def perceive(sim, obs, camera, perceptor, height=384, width=384):
 
 
 # ---------------------------------------------------------------------------
-# SAM-based perceptor (Segment Anything Model, ViT-Tiny)
+# SAM-based perceptor (Segment Anything Model, ViT-Base)
 # ---------------------------------------------------------------------------
 
 class SamPerceptor:
-    """Segment tabletop objects with SAM (ViT-Tiny) from an RGB image.
+    """Segment tabletop objects with SAM (ViT-Base) from an RGB image.
 
-    Uses huggingface transformers SamModel + SamProcessor with the tiny
-    checkpoint (facebook/sam-vit-tiny). Runs on CPU by default to avoid
+    Uses huggingface transformers SamModel + SamProcessor with the base
+    checkpoint (facebook/sam-vit-base). Runs on CPU by default to avoid
     GPU contention with MuJoCo.
 
     Resolution pipeline: 384->1024 (SAM encoder) -> masks -> nearest-neighbour->384.
@@ -401,7 +401,7 @@ class SamPerceptor:
 
     def __init__(
         self,
-        model_type: str = "facebook/sam-vit-tiny",
+        model_type: str = "facebook/sam-vit-base",
         device: str = "cpu",
         points_per_side: int = 16,
         pred_iou_thresh: float = 0.7,
@@ -429,13 +429,11 @@ class SamPerceptor:
         self._processor = None
         self._generator = None
 
-    def _load_model(self):
-        if self.model_type in self._MODEL_CACHE:
-            cached = self._MODEL_CACHE[self.model_type]
-            self._model = cached["model"]
-            self._processor = cached["processor"]
-            self._generator = cached["generator"]
-            return
+    def _load_model(self) -> dict:
+        """Lazy-load SAM model and processor, cached at module level."""
+        key = f"{self.model_type}:{self.device}"
+        if key in self._MODEL_CACHE:
+            return self._MODEL_CACHE[key]
 
         from transformers import SamModel, SamProcessor
         import torch
@@ -444,82 +442,165 @@ class SamPerceptor:
         model = SamModel.from_pretrained(self.model_type).to(self.device)
         model.eval()
 
-        from transformers.models.sam.modeling_sam import SamAutomaticMaskGenerator
-
-        generator = SamAutomaticMaskGenerator(
-            model,
-            points_per_side=self.points_per_side,
-            pred_iou_thresh=self.pred_iou_thresh,
-            stability_score_thresh=self.stability_score_thresh,
-            min_mask_region_area=self.min_mask_region_area,
+        # Pre-compute point grid for automatic mask generation
+        # Instead of SamAutomaticMaskGenerator (unavailable), we generate
+        # a grid of prompt points and run the forward pass for each.
+        points_per_side = self.points_per_side
+        side = points_per_side
+        grid_x, grid_y = torch.meshgrid(
+            torch.linspace(0, 1023, side),
+            torch.linspace(0, 1023, side),
+            indexing="xy",
         )
+        point_grid = torch.stack([grid_x.flatten(), grid_y.flatten()], dim=-1)  # (N, 2)
+        point_grid = point_grid.unsqueeze(0).unsqueeze(2).to(self.device)  # (1, N, 1, 2)
+        n_pts = point_grid.shape[1]
+        point_labels = torch.ones(1, n_pts, 1, dtype=torch.long).to(self.device)  # (1, N, 1)
 
-        self._MODEL_CACHE[self.model_type] = {
-            "model": model,
+        cached = {
             "processor": processor,
-            "generator": generator,
+            "model": model,
+            "point_grid": point_grid,
+            "point_labels": point_labels,
+            "device": self.device,
         }
-        self._model = model
-        self._processor = processor
-        self._generator = generator
+        self._MODEL_CACHE[key] = cached
+        self._MODEL_CACHE[key] = cached
+        return cached
 
     def detect(self, rgb: np.ndarray) -> list[Detection]:
-        if self._generator is None:
-            self._load_model()
+        """Segment tabletop objects using point-prompted SAM.
 
-        if rgb is None or rgb.size == 0:
+        Generates a grid of prompt points (points_per_side x points_per_side),
+        runs SAM for each, filters by IoU score and area, and returns
+        Detection objects.
+        """
+        cached = self._load_model()
+        processor = cached["processor"]
+        model = cached["model"]
+        point_grid = cached["point_grid"]
+        point_labels = cached["point_labels"]
+        import torch
+
+        target_w, target_h = 384, 384
+        h, w = rgb.shape[:2]
+
+        # Process image through SAM processor (resizes to 1024x1024)
+        inputs = processor(
+            rgb,
+            return_tensors="pt",
+            do_rescale=False,
+        ).to(self.device)
+
+        # Get image embedding
+        with torch.no_grad():
+            image_embeddings = model.get_image_embeddings(inputs["pixel_values"])
+
+        # Run point prompts in batches to avoid OOM
+        batch_size = 16
+        all_masks = []
+        all_iou_scores = []
+        n_points = point_grid.shape[1]
+
+        for start_idx in range(0, n_points, batch_size):
+            end_idx = min(start_idx + batch_size, n_points)
+            batch_points = point_grid[:, start_idx:end_idx, :, :]
+            batch_labels = point_labels[:, start_idx:end_idx, :]
+
+            with torch.no_grad():
+                outputs = model(
+                    image_embeddings=image_embeddings,
+                    input_points=batch_points,
+                    input_labels=batch_labels,
+                    multimask_output=True,
+                )
+                all_masks.append(outputs.pred_masks.cpu())
+                all_iou_scores.append(outputs.iou_scores.cpu())
+
+        if not all_masks:
             return []
 
-        import cv2
+        pred_masks = torch.cat(all_masks, dim=1)  # (1, N, 3, 256, 256)
+        iou_scores = torch.cat(all_iou_scores, dim=1)  # (1, N, 3)
 
-        if rgb.dtype != np.uint8:
-            rgb = np.clip(rgb, 0, 255).astype(np.uint8)
+        # Pick best mask per point (highest IoU among 3 candidates per point)
+        best_per_point = iou_scores.argmax(dim=-1)  # (1, N)
+        masks_list = []
+        scores_list = []
+        for i in range(pred_masks.shape[1]):
+            best = best_per_point[0, i].item()
+            mask = pred_masks[0, i, best, :, :].numpy()  # (256, 256)
+            score = float(iou_scores[0, i, best].item())
+            if score > self.pred_iou_thresh:
+                masks_list.append(mask)
+                scores_list.append(score)
 
-        masks = self._generator.generate(rgb)
+        if not masks_list:
+            return []
 
+        # Stack and resize masks to 384x384
+        masks_tensor = torch.from_numpy(np.array(masks_list)).float().unsqueeze(1)
+        masks_resized = torch.nn.functional.interpolate(
+            masks_tensor, size=(target_h, target_w), mode="nearest"
+        ).squeeze(1).numpy()
+
+        # Non-maximum suppression: merge overlapping masks
         detections = []
-        target_h, target_w = 384, 384
-        orig_h, orig_w = rgb.shape[:2]
-        scale_x = target_w / orig_w
-        scale_y = target_h / orig_h
-
-        for mask_data in masks:
-            mask = mask_data["segmentation"]
-            area = int(mask.sum())
-
-            scaled_area = int(area * scale_x * scale_y)
-            if scaled_area < self.min_mask_region_area or scaled_area > self.max_mask_region_area:
+        used = set()
+        for i, (mask_small, score) in enumerate(zip(masks_resized, scores_list)):
+            if i in used:
                 continue
 
-            mask_uint8 = mask.astype(np.uint8) * 255
-            mask_small = cv2.resize(mask_uint8, (target_w, target_h), interpolation=cv2.INTER_NEAREST)
-            mask_small_bool = mask_small > 0
+            mask_bool = mask_small > 0
+            area = int(mask_bool.sum())
 
-            ys, xs = np.where(mask_small_bool)
-            if len(xs) == 0:
+            if area < self.min_mask_region_area or area > self.max_mask_region_area:
                 continue
+
+            # Skip if mostly overlapping with a higher-scored mask
+            keep = True
+            for j in range(i):
+                if j in used:
+                    continue
+                prev_mask = masks_resized[j] > 0
+                intersection = (mask_bool & prev_mask).sum()
+                union = (mask_bool | prev_mask).sum()
+                if union > 0 and intersection / union > 0.7:
+                    keep = False
+                    break
+
+            if not keep:
+                continue
+
+            ys, xs = np.where(mask_bool)
             cx = int(np.mean(xs))
             cy = int(np.mean(ys))
-            bbox = _mask_bbox(mask_small_bool)
-            area_px = int(mask_small_bool.sum())
+            bbox = _mask_bbox(mask_bool)
 
-            rgb_small = cv2.resize(rgb, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
-            mean_rgb = _mask_mean_rgb(rgb_small, mask_small_bool)
+            # Fallback mean_rgb from the SAM mask area
+            mask_3d = np.stack([mask_bool] * 3, axis=-1)
+            if h != target_h or w != target_w:
+                rgb_resized = cv2.resize(rgb, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
+            else:
+                rgb_resized = rgb
+            masked_pixels = rgb_resized[mask_bool]
+            mean_rgb = tuple(int(v) for v in masked_pixels.mean(axis=0)) if len(masked_pixels) > 0 else (128, 128, 128)
 
             label = self._match_color(mean_rgb)
-            if label is None and self.label_fallback:
-                label = self.label_fallback
 
             detections.append(Detection(
-                cx=cx, cy=cy, bbox=bbox, area_px=area_px,
+                cx=cx, cy=cy, bbox=bbox, area_px=area,
                 mean_rgb=mean_rgb, label=label,
-                confidence=float(mask_data.get("predicted_iou", 1.0)),
+                confidence=round(float(score), 4),
                 source="sam",
             ))
 
         return detections
 
-    def _match_color(self, rgb):
+    def _match_color(self, rgb: tuple[int, int, int]) -> str | None:
+        """Match an RGB tuple to the closest known color label."""
+        if not self.color_labels:
+            return None
         best = None
         best_dist = float("inf")
         r, g, b = rgb
